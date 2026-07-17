@@ -1,8 +1,8 @@
 const request = require("supertest");
 const app = require("../src/app");
 
-describe("GET /api/health", () => {
-  test("returns API health status", async () => {
+describe("Health endpoint", () => {
+  test("returns status 200 and an ok response", async () => {
     const response = await request(app).get("/api/health");
 
     expect(response.statusCode).toBe(200);
