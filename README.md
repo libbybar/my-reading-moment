@@ -1,44 +1,72 @@
 # רק רגע לקרוא
 
-## תיאור
+## My Reading Moment
 
-"רק רגע לקרוא" היא אפליקציית עזר להורים ליצירת תרגולי קריאה קצרים ומותאמים אישית לילדות ולילדים.
+## Description
 
-## מטרת הפרויקט
+My Reading Moment is a parent-facing application for creating short, personalized Hebrew reading exercises for children.
 
-הפרויקט נמצא כעת בשלב הקמת התשתית הראשונית (client + server).
+The project is designed to support focused reading practice through simple exercises that can be adapted to each child's reading level and interests.
 
-## מבנה הפרויקט
+## Current Status
 
-- `client/` — אפליקציית React (Vite)
-- `server/` — Express API (CommonJS)
+The project currently includes:
 
-## דרישות מוקדמות
+- A React client built with Vite
+- An Express API
+- A reading-session preview endpoint
+- A basic flow for selecting a child and requesting a reading exercise
+- Loading and error states
+- Reusable UI components
+- Automated client and server tests
+- Client and server linting
+- GitHub Actions CI checks
 
-הפרויקט פותח ונבדק עם Node.js 24 ו-npm 11.
+The reading exercise content is currently based on mock data. Dynamic exercise generation and persistent child profiles will be added in later stages.
 
-## התקנה — צד לקוח
+## Project Structure
+
+- `client/` — React application built with Vite
+- `server/` — Express API using CommonJS
+- `.github/workflows/` — GitHub Actions CI configuration
+
+## Prerequisites
+
+The project was developed and tested with:
+
+- Node.js 24
+- npm 11
+
+## Install Client Dependencies
 
 ```bash
 cd client
 npm install
 ```
 
-## התקנה — צד שרת
+## Install Server Dependencies
 
 ```bash
 cd server
 npm install
 ```
 
-## הרצת צד הלקוח
+## Run the Client
 
 ```bash
 cd client
 npm run dev
 ```
 
-## הרצת השרת
+The client runs locally on:
+
+```text
+http://localhost:5173
+```
+
+## Run the Server
+
+Create a local environment file before starting the server:
 
 ```bash
 cd server
@@ -46,25 +74,47 @@ cp .env.example .env
 npm run dev
 ```
 
-## הרצת בדיקות
+The server runs locally on:
 
-בדיקות אוטומטיות מוגדרות כרגע בצד השרת בלבד (עם Jest). בצד הלקוח אין עדיין script של בדיקות.
+```text
+http://localhost:7000
+```
+
+## Run Server Tests
+
+Automated server tests use Jest and Supertest.
 
 ```bash
 cd server
 npm test
 ```
 
-## Linting — צד שרת
+## Run Client Tests
+
+Automated client tests use Vitest and React Testing Library.
+
+```bash
+cd client
+npm test
+```
+
+## Run Server Lint
 
 ```bash
 cd server
 npm run lint
 ```
 
-## Linting — צד לקוח
+## Run Client Lint
 
 ```bash
 cd client
 npm run lint
+```
+
+## Build the Client
+
+```bash
+cd client
+npm run build
 ```
