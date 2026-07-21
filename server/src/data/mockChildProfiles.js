@@ -1,6 +1,6 @@
 const mockChildProfiles = [
   {
-    id: "1",
+    id: "mock-child-profile-gaya",
     name: "גאיה",
     grammaticalGender: "female",
     readingLevel: "beginner",
