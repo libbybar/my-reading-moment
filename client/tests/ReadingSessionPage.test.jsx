@@ -52,7 +52,7 @@ describe('ReadingSessionPage', () => {
       '/api/reading-sessions/preview',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ childId: '1' }),
+        body: JSON.stringify({ childId: 'mock-child-profile-gaya' }),
       }),
     )
 
@@ -69,7 +69,7 @@ describe('ReadingSessionPage', () => {
     expect(button).toBeDisabled()
   })
 
-  it('displays the reading exercise on a successful response', async () => {
+  it('displays the reading exercise on a successful response, one question at a time', async () => {
     globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(mockExercise) })
     renderPage()
 
@@ -78,7 +78,27 @@ describe('ReadingSessionPage', () => {
     expect(await screen.findByText(mockExercise.title)).toBeInTheDocument()
     expect(screen.getByText(mockExercise.story)).toBeInTheDocument()
     expect(screen.getByText(mockExercise.questions[0])).toBeInTheDocument()
+    expect(screen.queryByText(mockExercise.questions[1])).not.toBeInTheDocument()
+    expect(screen.queryByText(mockExercise.readingGame.instruction)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: TEXT.readingSession.nextQuestionButtonLabel }))
+
     expect(screen.getByText(mockExercise.questions[1])).toBeInTheDocument()
+    expect(screen.queryByText(mockExercise.questions[0])).not.toBeInTheDocument()
+  })
+
+  it('shows a completion message after answering the last question', async () => {
+    globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(mockExercise) })
+    renderPage()
+
+    fireEvent.click(getCreateButton())
+    await screen.findByText(mockExercise.questions[0])
+
+    fireEvent.click(screen.getByRole('button', { name: TEXT.readingSession.nextQuestionButtonLabel }))
+    fireEvent.click(screen.getByRole('button', { name: TEXT.readingSession.nextQuestionButtonLabel }))
+
+    expect(screen.getByText(TEXT.readingSession.questionsCompleteMessage)).toBeInTheDocument()
+    expect(screen.queryByText(mockExercise.questions[1])).not.toBeInTheDocument()
     expect(screen.getByText(mockExercise.readingGame.instruction)).toBeInTheDocument()
   })
 

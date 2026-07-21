@@ -5,30 +5,38 @@ import SelectField from '../components/ui/SelectField'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
 import PageShell from '../components/ui/PageShell'
 import Card from '../components/ui/Card'
+import QuestionStep from './QuestionStep'
+import { fetchReadingExercise } from '../services/readingSessionService'
+import {
+  ExerciseContent,
+  ExerciseTitle,
+  SectionHeading,
+  StoryCard,
+  QuestionsCard,
+  ReadingGameCard,
+  StoryText,
+  SelectionPanel,
+  SelectionHeading,
+  SelectionHelperText,
+} from '../styles/ReadingSessionPageStyle'
 
-const CHILD_OPTIONS = [{ value: '1', label: 'גאיה' }]
+const CHILD_OPTIONS = [{ value: 'mock-child-profile-gaya', label: 'גאיה' }]
 
 function ReadingSessionPage() {
-  const [childId, setChildId] = useState('1')
+  const [childId, setChildId] = useState('mock-child-profile-gaya')
   const [exercise, setExercise] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [questionIndex, setQuestionIndex] = useState(0)
 
   const handleCreateExercise = () => {
     setLoading(true)
 
-    fetch('/api/reading-sessions/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId }),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Request failed')
-        }
-        return response.json()
+    fetchReadingExercise(childId)
+      .then((data) => {
+        setExercise(data)
+        setQuestionIndex(0)
       })
-      .then(setExercise)
       .catch(() => setError(TEXT.readingSession.error))
       .finally(() => setLoading(false))
   }
@@ -47,14 +55,18 @@ function ReadingSessionPage() {
     return (
       <PageShell>
         <Card>
-          <SelectField
-            value={childId}
-            onChange={(e) => setChildId(e.target.value)}
-            options={CHILD_OPTIONS}
-          />
-          <Button onClick={handleCreateExercise} disabled={loading}>
-            {loading ? TEXT.readingSession.loading : TEXT.readingSession.createButtonLabel}
-          </Button>
+          <SelectionPanel>
+            <SelectionHeading>{TEXT.readingSession.selectionHeading}</SelectionHeading>
+            <SelectionHelperText>{TEXT.readingSession.selectionHelperText}</SelectionHelperText>
+            <SelectField
+              value={childId}
+              onChange={(e) => setChildId(e.target.value)}
+              options={CHILD_OPTIONS}
+            />
+            <Button onClick={handleCreateExercise} disabled={loading}>
+              {loading ? TEXT.readingSession.loading : TEXT.readingSession.createButtonLabel}
+            </Button>
+          </SelectionPanel>
         </Card>
       </PageShell>
     )
@@ -63,20 +75,31 @@ function ReadingSessionPage() {
   return (
     <PageShell>
       <Card>
-        <h1>{exercise.title}</h1>
+        <ExerciseContent>
+          <ExerciseTitle>{exercise.title}</ExerciseTitle>
 
-        <h2>{TEXT.readingSession.storyLabel}</h2>
-        <p>{exercise.story}</p>
+          <StoryCard>
+            <SectionHeading>{TEXT.readingSession.storyLabel}</SectionHeading>
+            <StoryText>{exercise.story}</StoryText>
+          </StoryCard>
 
-        <h2>{TEXT.readingSession.questionsLabel}</h2>
-        <ul>
-          {exercise.questions.map((question) => (
-            <li key={question}>{question}</li>
-          ))}
-        </ul>
+          <QuestionsCard>
+            <SectionHeading>{TEXT.readingSession.questionsLabel}</SectionHeading>
+            <QuestionStep
+              question={exercise.questions[questionIndex]}
+              questionNumber={questionIndex}
+              totalQuestions={exercise.questions.length}
+              onNext={() => setQuestionIndex((index) => index + 1)}
+            />
+          </QuestionsCard>
 
-        <h2>{TEXT.readingSession.readingGameLabel}</h2>
-        <p>{exercise.readingGame.instruction}</p>
+          {questionIndex >= exercise.questions.length && (
+            <ReadingGameCard>
+              <SectionHeading>{TEXT.readingSession.readingGameLabel}</SectionHeading>
+              <p>{exercise.readingGame.instruction}</p>
+            </ReadingGameCard>
+          )}
+        </ExerciseContent>
       </Card>
     </PageShell>
   )
