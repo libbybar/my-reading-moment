@@ -38,6 +38,12 @@ export const LOCALIZED_TEXT = {
       },
       readingGameLabel: 'משחק קריאה',
     },
+    childSelection: {
+      heading: 'למי ניצור תרגול היום?',
+      loading: 'הרשימה נטענת...',
+      error: 'לא הצלחנו לטעון את הרשימה.',
+      emptyMessage: 'עדיין אין למי להכין תרגול.',
+    },
   },
 }
 
