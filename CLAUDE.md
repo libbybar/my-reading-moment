@@ -6,7 +6,7 @@ This file exists to preserve architectural decisions and their reasoning across 
 
 My Reading Moment is a Hebrew reading-practice application for children aged 6–10.
 
-The child reads a short passage and answers a free-text comprehension question. Answers may contain reasonable spelling mistakes, so correctness is evaluated semantically rather than through exact string comparison.
+The child reads a short passage and answers a free-text comprehension question. Answers may contain reasonable spelling mistakes, so correctness is intended to be evaluated semantically (by a real LLM) rather than through exact string comparison. The current mock `evaluateAnswer` does not do this yet — it uses deterministic normalized-text matching as a temporary stand-in (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
 
 If the answer is not accepted, the child receives supportive feedback and may request a different question about the same passage and at the same reading level.
 
@@ -14,11 +14,21 @@ A future task may expand the flow to approximately three questions from differen
 
 `client/` is Vite + React + styled-components; `server/` is Express (CommonJS).
 
-## Current milestone: Task 4.2 — answer-and-feedback cycle UI
+## Current milestone: Task 4 — answer-and-feedback cycle UI (done)
 
-Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested.
+Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested. 4.2 (below) is also done: `QuestionStep` and `ReadingSessionPage` were fully rewritten to the canonical single-`question` + answer-submission model, the `grammaticalGender` prerequisite was implemented, and the full answer-and-feedback cycle is tested end to end.
 
-### In scope
+Since 4.2 closed, two more focused fixes landed on the same branch:
+- `/preview` selects the passage by the child's `readingLevel` instead of always using `mockPassages[0]` (see "Passage selection by reading level" below).
+- The mock `evaluateAnswer` does deterministic normalized-text matching against `expectedMeaning` instead of accepting any non-blank answer (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
+- A responsive/typography pass was done on `ReadingSessionPageStyle.js` and the shared `components/ui` styles (see "Responsive & typography" below).
+
+Planned direction beyond this point:
+- Task 5: child-selection screen
+- Task 6: child-specific world and learning path
+- Task 7: reading game
+
+### Implemented in 4.2
 
 - storing the child's answer in client state
 - submitting the answer through `submitAnswer`
@@ -45,10 +55,6 @@ Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` a
 - parent-facing progress tables
 - session-completion screens
 
-### Not yet done
-
-`QuestionStep` still uses the old index-array model (`exercise.questions[i]`, `onNext`) — it needs a full rewrite to the canonical single-`question` + answer-submission model, blocked on the grammatical-gender prerequisite below.
-
 ## Grammatical-gender rule
 
 `grammaticalGender` must come only from the selected child profile. Supported values:
@@ -60,7 +66,7 @@ Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` a
 
 There is no default grammatical gender. Missing or unsupported grammatical gender is a **data-contract failure** — do not guess, silently fall back, or hardcode a gender in the client.
 
-**Current prerequisite before wiring the answer-cycle UI:** expose validated `grammaticalGender` through `/preview`. This includes server-side validation and automated tests, not only adding a response field. (`grammaticalGender` today exists only in `server/src/data/mockChildProfiles.js`; the `child` object is already loaded in the `/preview` handler for the 404 check, so returning it is a small addition — but it must be validated and tested as a real contract field, not just appended.)
+`grammaticalGender` is validated server-side in `/preview` (`isValidGrammaticalGender`, `readingSessionRoutes.js`) and returned in the response; an invalid/missing value on the child profile is treated as an internal data-contract failure and returns the same stable preview-failure response as any other `/preview` error — never a partial response, never which field was invalid.
 
 ## Core architectural decisions (and why)
 
@@ -88,6 +94,10 @@ any request failure → error
 ```
 `retry` is a real waiting state with an explicit user action — the client does *not* auto-fetch the next question.
 
+**Passage selection by reading level.** `/preview` selects a passage with `passage.readingLevel === child.readingLevel` — never by array position, interests, name, or id. If no passage matches, it returns the same stable preview-failure response as any other `/preview` failure, and never calls `generateQuestion` or `createSession` (see `readingSessionRoutes.js`). This was a bug fix: it previously always used `mockPassages[0]`.
+
+**Mock `evaluateAnswer` is deterministic, not semantic.** The mock normalizes (trim, lowercase, strip common punctuation, collapse whitespace) both `answerText` and the session's own `question.expectedMeaning`, then checks whether the normalized expected meaning contains the normalized answer (minimum 2 normalized characters, to reject trivial single-letter matches). This lets the current build be exercised manually without a real LLM — it is explicitly *not* the future semantic evaluator, and it never trusts an `expectedMeaning` sent by the client (that field is server-only and never crosses HTTP, per the `expectedMeaning` decision above).
+
 ## UI text rule
 
 Do not hardcode child-facing UI text inside:
@@ -105,6 +115,12 @@ All UI text must be stored under stable semantic keys in the localized text sour
 - New gender-aware UI code must resolve text through `resolveText(key, {language, grammaticalGender})` (`client/src/constants/resolveText.js`), which throws (never falls back) on an unsupported language, missing key, malformed entry, or missing/invalid `grammaticalGender`.
 - The transitional `TEXT` compatibility export is only for existing neutral-string consumers and must not be used for new gender-aware text — it actively throws if code touches a gendered key through it (via a getter), so it can never silently leak a `{female,male}` object.
 - No i18n library — plain JS objects + one small resolver, deliberately.
+
+## Responsive & typography
+
+- Breakpoints used across `ReadingSessionPageStyle.js` and `styles/components/*Style.js`: `768px` (no rule needed yet — the `480px`-max-width `Card` already fits comfortably), `480px`, `360px`. Each step down reduces `PageShell`/`Card`/`SectionCard` horizontal padding and bumps `Button`/`TextField`/`SelectField` padding up slightly for tap-target size.
+- `AnswerPanel` (`ReadingSessionPageStyle.js`) is a flex-column, stretch-aligned wrapper — the same pattern `SelectionPanel` already used — so `QuestionStep`'s answer input and buttons stretch to the card's full width instead of shrinking to content width. Reuse this pattern for any new full-width control group; don't invent a second one.
+- The reading passage (`StoryText`) uses `line-height: 2.2` specifically for pointed-Hebrew (niqqud) readability — vowel points need more vertical room than plain text. Don't reduce this without checking niqqud rendering again. `theme.js` currently defines only one font (`'Varela Round'`); a different font was deliberately not introduced since the line-height fix was sufficient.
 
 ## Component conventions
 
@@ -147,4 +163,3 @@ Keep unrelated changes out of the same commit.
 
 - Work in small, single-concern steps: propose → get explicit go-ahead → implement (including its tests) → run the *full* client and server suites + lint for both → stop for review. Don't bundle unrelated changes into one step.
 - When implementing a step surfaces a contract/architecture gap (e.g. a validation missing, two fields that should be one source of truth), stop and propose the fix before continuing — don't silently patch around it.
-- Respond in English in conversation (the user is practicing work-English) even when the user writes in Hebrew — this is a standing preference, unrelated to the app itself, which stays Hebrew/RTL throughout.
