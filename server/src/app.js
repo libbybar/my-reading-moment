@@ -4,6 +4,7 @@ const helmet = require("helmet");
 
 const healthRoutes = require("./routes/healthRoutes");
 const readingSessionRoutes = require("./routes/readingSessionRoutes");
+const childProfileRoutes = require("./routes/childProfileRoutes");
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use("/api/health", healthRoutes);
 app.use("/api/reading-sessions", readingSessionRoutes);
+app.use("/api/child-profiles", childProfileRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

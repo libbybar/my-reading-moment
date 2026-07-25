@@ -14,4 +14,8 @@ export const StyledButton = styled.button`
     background: ${(props) => props.theme.colors.textMuted};
     cursor: not-allowed;
   }
+
+  @media (max-width: 480px) {
+    padding: 12px 18px;
+  }
 `

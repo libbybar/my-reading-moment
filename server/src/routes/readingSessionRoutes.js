@@ -47,6 +47,10 @@ function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isValidGrammaticalGender(value) {
+  return value === "female" || value === "male";
+}
+
 function isValidGeneratedQuestion(question, session) {
   if (!question || typeof question !== "object") {
     return false;
@@ -76,6 +80,8 @@ function toPassageSnapshot(passage) {
   };
 }
 
+const PREVIEW_FAILURE_MESSAGE = "Failed to generate a reading question";
+
 router.post("/preview", async (req, res) => {
   const { childId } = req.body;
 
@@ -93,7 +99,27 @@ router.post("/preview", async (req, res) => {
     });
   }
 
-  const [passage] = mockPassages;
+  if (!isValidGrammaticalGender(child.grammaticalGender)) {
+    // Internal data-contract failure: the child profile itself is malformed.
+    // Never expose which field is invalid or what value it held — respond
+    // with the same stable error shape as any other /preview failure.
+    return res.status(500).json({
+      error: PREVIEW_FAILURE_MESSAGE,
+    });
+  }
+
+  const passage = mockPassages.find(
+    (candidate) => candidate.readingLevel === child.readingLevel,
+  );
+
+  if (!passage) {
+    // No mock passage exists at this child's reading level. Same stable
+    // failure shape as any other /preview failure — never expose which
+    // reading level was unmatched.
+    return res.status(500).json({
+      error: PREVIEW_FAILURE_MESSAGE,
+    });
+  }
 
   try {
     const result = await llmProvider.generateQuestion({ passage, askedQuestionIds: [] });
@@ -132,10 +158,11 @@ router.post("/preview", async (req, res) => {
       passageId: passage.id,
       sessionId,
       question: safeQuestion,
+      grammaticalGender: child.grammaticalGender,
     });
   } catch {
     res.status(500).json({
-      error: "Failed to generate a reading question",
+      error: PREVIEW_FAILURE_MESSAGE,
     });
   }
 });

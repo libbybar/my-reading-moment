@@ -47,6 +47,39 @@ describe("POST /api/reading-sessions/answers", () => {
     });
   });
 
+  test("returns retry for a clearly wrong answer", async () => {
+    const sessionId = await createSessionId();
+
+    const response = await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "משהו לגמרי לא קשור",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      questionId: expect.any(String),
+      isCorrect: false,
+      feedbackType: "retry",
+    });
+  });
+
+  test("ignores any expectedMeaning sent by the client and evaluates against the session's own question", async () => {
+    const sessionId = await createSessionId();
+
+    const response = await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "מטרה לא קשורה",
+      expectedMeaning: "מטרה לא קשורה",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      questionId: expect.any(String),
+      isCorrect: false,
+      feedbackType: "retry",
+    });
+  });
+
   test("returns 400 when sessionId is missing", async () => {
     const response = await request(app).post("/api/reading-sessions/answers").send({
       answerText: "some answer",

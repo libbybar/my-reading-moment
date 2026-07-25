@@ -9,6 +9,10 @@ export const ExerciseTitle = styled.h1`
   color: ${(props) => props.theme.colors.primaryDark};
   font-size: 28px;
   margin: 0 0 16px;
+
+  @media (max-width: 480px) {
+    font-size: 24px;
+  }
 `
 
 export const SectionHeading = styled.h2`
@@ -43,6 +47,14 @@ const SectionCard = styled.section`
   border-radius: 16px;
   padding: 20px 24px;
   margin-top: 20px;
+
+  @media (max-width: 480px) {
+    padding: 16px 18px;
+  }
+
+  @media (max-width: 360px) {
+    padding: 14px;
+  }
 `
 
 export const StoryCard = styled(SectionCard)`
@@ -61,9 +73,10 @@ export const StoryText = styled.p`
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
   font-size: 18px;
-  line-height: 1.9;
+  line-height: 2.2;
   max-width: 60ch;
   margin: 0;
+  overflow-wrap: break-word;
 `
 
 export const QuestionProgress = styled.p`
@@ -71,6 +84,13 @@ export const QuestionProgress = styled.p`
   color: ${(props) => props.theme.colors.textMuted};
   font-size: 14px;
   margin: 0 0 4px;
+`
+
+export const AnswerPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 `
 
 export const QuestionText = styled.p`

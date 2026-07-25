@@ -3,6 +3,7 @@ import {
   fetchReadingExercise,
   submitAnswer,
   fetchNextQuestion,
+  ReadingSessionServiceError,
 } from '../src/services/readingSessionService'
 
 beforeEach(() => {
@@ -36,10 +37,40 @@ describe('readingSessionService', () => {
       expect(result).toEqual(exercise)
     })
 
-    it('rejects when the response is not ok', async () => {
-      globalThis.fetch.mockResolvedValue({ ok: false, status: 500 })
+    it('rejects with a structured error when the response is not ok', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'boom' }),
+      })
 
-      await expect(fetchReadingExercise('test-child-profile-1')).rejects.toThrow()
+      await expect(fetchReadingExercise('test-child-profile-1')).rejects.toMatchObject({
+        name: 'ReadingSessionServiceError',
+        status: 500,
+        body: { error: 'boom' },
+        message: expect.any(String),
+      })
+    })
+
+    it('handles a non-JSON error response safely without hiding the HTTP status', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new Error('invalid json')),
+      })
+
+      let caughtError
+
+      try {
+        await fetchReadingExercise('test-child-profile-1')
+      } catch (thrownError) {
+        caughtError = thrownError
+      }
+
+      expect(caughtError).toBeInstanceOf(ReadingSessionServiceError)
+      expect(caughtError.status).toBe(502)
+      expect(caughtError.body).toBeNull()
+      expect(caughtError.message).toEqual(expect.any(String))
     })
   })
 
@@ -65,12 +96,21 @@ describe('readingSessionService', () => {
       expect(result).toEqual(evaluation)
     })
 
-    it('rejects when the response is not ok', async () => {
-      globalThis.fetch.mockResolvedValue({ ok: false, status: 404 })
+    it('rejects with a structured error when the response is not ok', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: 'Session not found' }),
+      })
 
       await expect(
         submitAnswer({ sessionId: 'unknown', answerText: 'some answer' }),
-      ).rejects.toThrow()
+      ).rejects.toMatchObject({
+        name: 'ReadingSessionServiceError',
+        status: 404,
+        body: { error: 'Session not found' },
+        message: expect.any(String),
+      })
     })
   })
 
@@ -110,10 +150,19 @@ describe('readingSessionService', () => {
       expect(result).toEqual({ question: null })
     })
 
-    it('rejects when the response is not ok', async () => {
-      globalThis.fetch.mockResolvedValue({ ok: false, status: 500 })
+    it('rejects with a structured error when the response is not ok', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'boom' }),
+      })
 
-      await expect(fetchNextQuestion('session-1')).rejects.toThrow()
+      await expect(fetchNextQuestion('session-1')).rejects.toMatchObject({
+        name: 'ReadingSessionServiceError',
+        status: 500,
+        body: { error: 'boom' },
+        message: expect.any(String),
+      })
     })
   })
 })

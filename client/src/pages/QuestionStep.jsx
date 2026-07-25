@@ -1,27 +1,60 @@
-import { TEXT } from '../constants/text'
+import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
-import { QuestionProgress, QuestionText } from '../styles/ReadingSessionPageStyle'
+import { QuestionText, AnswerPanel } from '../styles/ReadingSessionPageStyle'
 
-function QuestionStep({ question, questionNumber, totalQuestions, onNext }) {
-  const isComplete = questionNumber >= totalQuestions
+function QuestionStep({
+  question,
+  answerText,
+  onAnswerChange,
+  onSubmit,
+  status,
+  placeholder,
+  ariaLabel,
+  submitLabel,
+  checkingLabel,
+  feedbackMessage,
+  onRequestReplacement,
+  replacementActionLabel,
+  generatingLabel,
+}) {
+  if (status === 'correct') {
+    return <FeedbackMessage tone="success">{feedbackMessage}</FeedbackMessage>
+  }
 
-  if (isComplete) {
+  if (status === 'retry' || status === 'generating') {
+    const isGenerating = status === 'generating'
+
     return (
-      <FeedbackMessage tone="success">
-        {TEXT.readingSession.questionsCompleteMessage}
-      </FeedbackMessage>
+      <AnswerPanel>
+        <FeedbackMessage tone="error">{feedbackMessage}</FeedbackMessage>
+        <Button onClick={onRequestReplacement} disabled={isGenerating}>
+          {isGenerating ? generatingLabel : replacementActionLabel}
+        </Button>
+      </AnswerPanel>
     )
   }
 
+  if (status === 'error') {
+    return <FeedbackMessage tone="error">{feedbackMessage}</FeedbackMessage>
+  }
+
+  const isChecking = status === 'checking'
+
   return (
-    <>
-      <QuestionProgress>
-        {questionNumber + 1} / {totalQuestions}
-      </QuestionProgress>
-      <QuestionText>{question}</QuestionText>
-      <Button onClick={onNext}>{TEXT.readingSession.nextQuestionButtonLabel}</Button>
-    </>
+    <AnswerPanel>
+      <QuestionText>{question.prompt}</QuestionText>
+      <TextField
+        value={answerText}
+        onChange={onAnswerChange}
+        disabled={isChecking}
+        placeholder={placeholder}
+        ariaLabel={ariaLabel}
+      />
+      <Button onClick={onSubmit} disabled={isChecking}>
+        {isChecking ? checkingLabel : submitLabel}
+      </Button>
+    </AnswerPanel>
   )
 }
 

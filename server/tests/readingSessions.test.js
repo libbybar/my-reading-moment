@@ -1,6 +1,7 @@
 const request = require("supertest");
 const app = require("../src/app");
 const mockPassages = require("../src/data/mockPassages");
+const mockChildProfiles = require("../src/data/mockChildProfiles");
 const readingSessionStore = require("../src/services/readingSessionStore");
 
 describe("POST /api/reading-sessions/preview", () => {
@@ -10,6 +11,7 @@ describe("POST /api/reading-sessions/preview", () => {
 
   test("returns the reading exercise for a known childId", async () => {
     const [passage] = mockPassages;
+    const child = mockChildProfiles.find((profile) => profile.id === "mock-child-profile-gaya");
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
@@ -28,6 +30,7 @@ describe("POST /api/reading-sessions/preview", () => {
         passageId: passage.questions[0].passageId,
         prompt: passage.questions[0].prompt,
       },
+      grammaticalGender: child.grammaticalGender,
     });
     expect(response.body.question).not.toHaveProperty("expectedMeaning");
   });

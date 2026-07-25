@@ -1,8 +1,25 @@
 const READING_SESSIONS_BASE_URL = '/api/reading-sessions'
 
+export class ReadingSessionServiceError extends Error {
+  constructor(message, { status, body }) {
+    super(message)
+    this.name = 'ReadingSessionServiceError'
+    this.status = status
+    this.body = body
+  }
+}
+
 async function parseJsonResponse(response) {
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
+    // Response body might not be valid JSON (or might have none) — keep the
+    // status/message stable rather than letting a body-parsing failure hide
+    // the real error.
+    const body = await response.json().catch(() => null)
+
+    throw new ReadingSessionServiceError(`Request failed with status ${response.status}`, {
+      status: response.status,
+      body,
+    })
   }
 
   return response.json()

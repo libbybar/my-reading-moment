@@ -7,4 +7,12 @@ export const StyledCard = styled.div`
   color: ${(props) => props.theme.colors.text};
   border-radius: 16px;
   padding: 32px;
+
+  @media (max-width: 480px) {
+    padding: 20px;
+  }
+
+  @media (max-width: 360px) {
+    padding: 16px;
+  }
 `

@@ -4,6 +4,21 @@ function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+// Smallest rule that lets short, realistic child answers match: strip common
+// punctuation and collapse whitespace, then check whether the normalized
+// expected meaning contains the normalized answer. This is a deterministic
+// mock stand-in for semantic evaluation, not semantic matching itself.
+const MIN_MEANINGFUL_ANSWER_LENGTH = 2;
+
+function normalizeForComparison(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[.,!?;:"'׳״]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function generateQuestion({ passage, askedQuestionIds = [] }) {
   // These are the fields a real generator needs to produce a question at the
   // right difficulty: the actual passage content (text) and the level to
@@ -64,7 +79,12 @@ async function evaluateAnswer({ passage, question, answerText }) {
     throw new Error("evaluateAnswer requires answerText to be a string");
   }
 
-  const isCorrect = answerText.trim().length > 0;
+  const normalizedAnswer = normalizeForComparison(answerText);
+  const normalizedExpectedMeaning = normalizeForComparison(question.expectedMeaning || "");
+
+  const isCorrect =
+    normalizedAnswer.length >= MIN_MEANINGFUL_ANSWER_LENGTH &&
+    normalizedExpectedMeaning.includes(normalizedAnswer);
 
   return {
     questionId: question.id,

@@ -22,7 +22,21 @@ describe("llmProvider (mock)", () => {
       expectedMeaning: "עלה ירוק נפל מתוך הספר.",
     };
 
-    test("evaluates a non-empty answer as correct", async () => {
+    test("evaluates an exact-match answer as correct", async () => {
+      const result = await llmProvider.evaluateAnswer({
+        passage,
+        question: { ...question, expectedMeaning: "עלה ירוק" },
+        answerText: "עלה ירוק",
+      });
+
+      expect(result).toEqual({
+        questionId: "mock-question-1",
+        isCorrect: true,
+        feedbackType: "correct",
+      });
+    });
+
+    test("evaluates an answer that is a meaningful substring of the expected meaning as correct", async () => {
       const result = await llmProvider.evaluateAnswer({
         passage,
         question,
@@ -36,11 +50,67 @@ describe("llmProvider (mock)", () => {
       });
     });
 
+    test("evaluates a clearly wrong answer as retry", async () => {
+      const result = await llmProvider.evaluateAnswer({
+        passage,
+        question: { ...question, expectedMeaning: "רובוט קטן בשם רובו" },
+        answerText: "מכונית",
+      });
+
+      expect(result).toEqual({
+        questionId: "mock-question-1",
+        isCorrect: false,
+        feedbackType: "retry",
+      });
+    });
+
     test("evaluates a blank answer as retry", async () => {
       const result = await llmProvider.evaluateAnswer({
         passage,
         question,
         answerText: "   ",
+      });
+
+      expect(result).toEqual({
+        questionId: "mock-question-1",
+        isCorrect: false,
+        feedbackType: "retry",
+      });
+    });
+
+    test("evaluates a whitespace-only answer (tabs and newlines) as retry", async () => {
+      const result = await llmProvider.evaluateAnswer({
+        passage,
+        question,
+        answerText: "\t\n  ",
+      });
+
+      expect(result).toEqual({
+        questionId: "mock-question-1",
+        isCorrect: false,
+        feedbackType: "retry",
+      });
+    });
+
+    test("normalizes punctuation and extra internal spacing before comparing", async () => {
+      const result = await llmProvider.evaluateAnswer({
+        passage,
+        question: { ...question, expectedMeaning: "עלה ירוק" },
+        answerText: "  עלה,   ירוק!  ",
+      });
+
+      expect(result).toEqual({
+        questionId: "mock-question-1",
+        isCorrect: true,
+        feedbackType: "correct",
+      });
+    });
+
+    test("does not treat an answer below the minimum meaningful length as a match", async () => {
+      const result = await llmProvider.evaluateAnswer({
+        passage,
+        question: { ...question, expectedMeaning: "בספרייה" },
+        answerText: "ב",
       });
 
       expect(result).toEqual({
