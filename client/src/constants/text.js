@@ -44,6 +44,9 @@ export const LOCALIZED_TEXT = {
       error: 'לא הצלחנו לטעון את הרשימה.',
       emptyMessage: 'עדיין אין למי להכין תרגול.',
     },
+    childHome: {
+      placeholderMessage: 'בקרוב יהיה כאן המרחב האישי שלך!',
+    },
   },
 }
 

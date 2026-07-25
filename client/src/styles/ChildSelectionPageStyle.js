@@ -13,7 +13,7 @@ export const ChildSelectionHeading = styled.h1`
 
 export const ProfileGrid = styled.div`
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
 `
