@@ -8,6 +8,20 @@ My Reading Moment is a parent-facing application for creating short, personalize
 
 The project is designed to support focused reading practice through simple exercises that can be adapted to each child's reading level and interests.
 
+## Naming conventions
+
+Use intention-revealing names, following the Clean Code principle that names should explain what the code does without requiring the reader to inspect the implementation.
+
+Prefer names that describe:
+
+- the responsibility of a function
+- the meaning of a value
+- the state or transition being represented
+- the domain concept, rather than the technical mechanism
+
+Use short names only when the meaning is obvious from a very small local scope.
+
+
 ## Current Status
 
 The project currently includes:
