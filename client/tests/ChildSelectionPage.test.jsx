@@ -25,11 +25,9 @@ const GENERIC_PROFILES = [
 ]
 
 function renderPage() {
-  // Matches main.jsx exactly: StrictMode double-invokes effects in
-  // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't. ChildSelectionPage needs router + active-child
-  // context to render (useNavigate/useActiveChild), but actual navigation
-  // behavior is covered by AppChildSelectionFlow.test.jsx, not here.
+  // StrictMode matches main.jsx; router + active-child context let
+  // ChildSelectionPage call useNavigate/useActiveChild. Navigation itself
+  // is covered by AppChildSelectionFlow.test.jsx, not here.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
@@ -86,7 +84,7 @@ describe('ChildSelectionPage', () => {
     expectOnlyLoadingVisible()
   })
 
-  it('renders every returned profile as an accessible clickable control with its avatar, and loading/error/empty absent', async () => {
+  it('renders each profile as an accessible avatar button, with loading/error/empty hidden', async () => {
     fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
 
     renderPage()

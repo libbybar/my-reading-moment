@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 describe('ChildHomePage', () => {
-  it('redirects back to /children when there is no active child (direct visit or refresh)', async () => {
+  it('redirects to /children when there is no active child (direct visit or refresh)', async () => {
     render(
       <ThemeProvider theme={theme}>
         <ActiveChildProvider>

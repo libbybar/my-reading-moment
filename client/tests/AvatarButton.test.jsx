@@ -18,7 +18,7 @@ afterEach(() => {
 })
 
 describe('AvatarButton', () => {
-  it('renders as a button with the label as its accessible name', () => {
+  it('uses the label as its accessible name', () => {
     renderAvatarButton()
 
     expect(screen.getByRole('button', { name: 'שם לדוגמה' })).toBeInTheDocument()

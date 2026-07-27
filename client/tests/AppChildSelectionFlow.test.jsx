@@ -44,7 +44,7 @@ afterEach(() => {
 })
 
 describe('App child-selection flow', () => {
-  it('selects a child on /children, preserves it through real navigation, and reaches /child-home without redirect or exposing the id', async () => {
+  it('selecting a child reaches /child-home with the active child preserved and its id hidden', async () => {
     fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
 
     renderAppAtPath('/children')

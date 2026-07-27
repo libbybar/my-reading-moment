@@ -7,7 +7,7 @@ afterEach(() => {
 })
 
 describe('getChildAvatar', () => {
-  it('returns a renderable avatar node regardless of which profile is passed', () => {
+  it('returns a renderable avatar node for any profile', () => {
     const profileA = { id: 'a', name: 'א', grammaticalGender: 'female', readingLevel: 'beginner' }
     const profileB = { id: 'b', name: 'ב', grammaticalGender: 'male', readingLevel: 'advanced' }
 
