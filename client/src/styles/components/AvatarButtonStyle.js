@@ -39,6 +39,20 @@ export const AvatarCircle = styled.div`
   }
 `
 
+export const AvatarDisplayWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 92px;
+  font-family: ${(props) => props.theme.fonts.main};
+  color: ${(props) => props.theme.colors.text};
+
+  @media (max-width: 480px) {
+    width: 80px;
+  }
+`
+
 export const AvatarLabel = styled.span`
   font-family: ${(props) => props.theme.fonts.main};
   font-size: 14px;
