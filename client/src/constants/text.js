@@ -45,7 +45,16 @@ export const LOCALIZED_TEXT = {
       emptyMessage: 'עדיין אין למי להכין תרגול.',
     },
     childHome: {
-      placeholderMessage: 'בקרוב יהיה כאן המרחב האישי שלך!',
+      heading: {
+        female: 'בואי נתרגל!',
+        male: 'בוא נתרגל!',
+      },
+      loading: 'טוען את המרחב שלך...',
+      error: 'לא הצלחנו לטעון את המרחב האישי.',
+      activeStationAccessibleLabel: 'התחלת תרגול קריאה',
+      switchChildButtonLabel: 'החלפת ילד/ה',
+      stepLabelPrefix: 'שלב',
+      lockedStepStatusLabel: 'נעול',
     },
   },
 }

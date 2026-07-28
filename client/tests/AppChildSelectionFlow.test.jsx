@@ -52,9 +52,9 @@ describe('App child-selection flow', () => {
     const selectedProfile = GENERIC_PROFILES[0]
     fireEvent.click(await screen.findByRole('button', { name: selectedProfile.name }))
 
-    expect(await screen.findByText(TEXT.childHome.placeholderMessage)).toBeInTheDocument()
-
-    // Reached /child-home directly — no redirect back to /children.
+    // Reached /child-home directly, showing the correct preserved child —
+    // not a redirect, and not some other/stale profile.
+    expect(await screen.findByText(selectedProfile.name)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/child-home')
     expect(screen.queryByText(TEXT.childSelection.heading)).not.toBeInTheDocument()
 
