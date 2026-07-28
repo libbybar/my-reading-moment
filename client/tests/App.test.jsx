@@ -12,6 +12,10 @@ vi.mock('../src/pages/ReadingSessionPage', () => ({
   default: () => <div>READING_SESSION_PAGE_SENTINEL</div>,
 }))
 
+vi.mock('../src/pages/ChildHomePage', () => ({
+  default: () => <div>CHILD_HOME_PAGE_SENTINEL</div>,
+}))
+
 import App from '../src/App'
 
 function renderAppAtPath(path) {
@@ -43,6 +47,13 @@ describe('App routing', () => {
     renderAppAtPath('/')
 
     expect(screen.getByText('READING_SESSION_PAGE_SENTINEL')).toBeInTheDocument()
+    expect(screen.queryByText('CHILD_SELECTION_PAGE_SENTINEL')).not.toBeInTheDocument()
+  })
+
+  it('renders the ChildHomePage sentinel at the dedicated /child-home route', () => {
+    renderAppAtPath('/child-home')
+
+    expect(screen.getByText('CHILD_HOME_PAGE_SENTINEL')).toBeInTheDocument()
     expect(screen.queryByText('CHILD_SELECTION_PAGE_SENTINEL')).not.toBeInTheDocument()
   })
 })

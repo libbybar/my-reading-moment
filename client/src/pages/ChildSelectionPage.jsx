@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { TEXT } from '../constants/text'
 import { fetchChildProfiles } from '../services/childProfileService'
-import Button from '../components/ui/Button'
+import { getChildAvatar } from '../constants/childAvatars'
+import { useActiveChild } from '../context/useActiveChild'
+import AvatarButton from '../components/ui/AvatarButton'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
 import PageShell from '../components/ui/PageShell'
 import Card from '../components/ui/Card'
@@ -11,6 +14,13 @@ function ChildSelectionPage() {
   const [childProfiles, setChildProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const navigate = useNavigate()
+  const { selectActiveChild } = useActiveChild()
+
+  function handleSelectProfile(profileId) {
+    selectActiveChild(profileId)
+    navigate('/child-home')
+  }
 
   useEffect(() => {
     // React's StrictMode (enabled in main.jsx) intentionally mounts every
@@ -58,7 +68,12 @@ function ChildSelectionPage() {
         {!loading && !error && childProfiles.length > 0 && (
           <ProfileGrid>
             {childProfiles.map((profile) => (
-              <Button key={profile.id}>{profile.name}</Button>
+              <AvatarButton
+                key={profile.id}
+                avatar={getChildAvatar(profile)}
+                label={profile.name}
+                onClick={() => handleSelectProfile(profile.id)}
+              />
             ))}
           </ProfileGrid>
         )}

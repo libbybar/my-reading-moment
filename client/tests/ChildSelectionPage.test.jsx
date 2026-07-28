@@ -2,13 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
 import { render, screen, cleanup } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
+import { MemoryRouter } from 'react-router'
 import ChildSelectionPage from '../src/pages/ChildSelectionPage'
+import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
 import { TEXT } from '../src/constants/text'
 import { theme } from '../src/styles/theme'
 import { fetchChildProfiles } from '../src/services/childProfileService'
+import { getChildAvatar } from '../src/constants/childAvatars'
 
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
+}))
+
+vi.mock('../src/constants/childAvatars', () => ({
+  getChildAvatar: vi.fn(() => <span data-testid="avatar-sentinel">AVATAR</span>),
 }))
 
 const GENERIC_PROFILES = [
@@ -18,13 +25,17 @@ const GENERIC_PROFILES = [
 ]
 
 function renderPage() {
-  // Matches main.jsx exactly: StrictMode double-invokes effects in
-  // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't.
+  // StrictMode matches main.jsx; router + active-child context let
+  // ChildSelectionPage call useNavigate/useActiveChild. Navigation itself
+  // is covered by AppChildSelectionFlow.test.jsx, not here.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
-        <ChildSelectionPage />
+        <ActiveChildProvider>
+          <MemoryRouter initialEntries={['/children']}>
+            <ChildSelectionPage />
+          </MemoryRouter>
+        </ActiveChildProvider>
       </ThemeProvider>
     </StrictMode>,
   )
@@ -46,6 +57,7 @@ function expectOnlyErrorVisible() {
 
 beforeEach(() => {
   fetchChildProfiles.mockReset()
+  getChildAvatar.mockClear()
 })
 
 afterEach(() => {
@@ -72,7 +84,7 @@ describe('ChildSelectionPage', () => {
     expectOnlyLoadingVisible()
   })
 
-  it('renders every returned profile as an accessible clickable control, with loading/error/empty absent', async () => {
+  it('renders each profile as an accessible avatar button, with loading/error/empty hidden', async () => {
     fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
 
     renderPage()
@@ -82,6 +94,7 @@ describe('ChildSelectionPage', () => {
     }
 
     expect(screen.getAllByRole('button')).toHaveLength(GENERIC_PROFILES.length)
+    expect(screen.getAllByTestId('avatar-sentinel')).toHaveLength(GENERIC_PROFILES.length)
     expect(screen.queryByText(TEXT.childSelection.loading)).not.toBeInTheDocument()
     expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
     expect(screen.queryByText(TEXT.childSelection.emptyMessage)).not.toBeInTheDocument()
@@ -166,5 +179,17 @@ describe('ChildSelectionPage', () => {
 
     expect(screen.getByRole('button', { name: currentProfile.name })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: staleProfile.name })).not.toBeInTheDocument()
+  })
+
+  it('passes each exact profile object to getChildAvatar', async () => {
+    fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
+
+    renderPage()
+
+    await screen.findByRole('button', { name: GENERIC_PROFILES[0].name })
+
+    for (const profile of GENERIC_PROFILES) {
+      expect(getChildAvatar).toHaveBeenCalledWith(profile)
+    }
   })
 })

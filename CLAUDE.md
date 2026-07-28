@@ -14,17 +14,23 @@ A future task may expand the flow to approximately three questions from differen
 
 `client/` is Vite + React + styled-components; `server/` is Express (CommonJS).
 
-## Current milestone: Task 4 — answer-and-feedback cycle UI (done)
+## Current milestone: Task 5 — child-selection screen (in progress)
 
-Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested. 4.2 (below) is also done: `QuestionStep` and `ReadingSessionPage` were fully rewritten to the canonical single-`question` + answer-submission model, the `grammaticalGender` prerequisite was implemented, and the full answer-and-feedback cycle is tested end to end.
+Task 4 (answer-and-feedback cycle UI) is done. Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested. 4.2 is also done: `QuestionStep` and `ReadingSessionPage` were fully rewritten to the canonical single-`question` + answer-submission model, the `grammaticalGender` prerequisite was implemented, and the full answer-and-feedback cycle is tested end to end.
 
 Since 4.2 closed, two more focused fixes landed on the same branch:
 - `/preview` selects the passage by the child's `readingLevel` instead of always using `mockPassages[0]` (see "Passage selection by reading level" below).
 - The mock `evaluateAnswer` does deterministic normalized-text matching against `expectedMeaning` instead of accepting any non-blank answer (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
 - A responsive/typography pass was done on `ReadingSessionPageStyle.js` and the shared `components/ui` styles (see "Responsive & typography" below).
 
+Task 5 so far:
+- `/children` is a dedicated route rendering `ChildSelectionPage`, which loads every child profile through the existing `fetchChildProfiles()` service and renders each as a circular `AvatarButton` (avatar + name).
+- Selecting a profile establishes `activeChildId` at application level and navigates to a temporary `/child-home` destination (see "Active-child identity lives in `ActiveChildProvider`" and "`/child-home` is a temporary destination" below).
+- `ReadingSessionPage`'s own child-selection dropdown still exists unchanged and is still how that page picks a child; removing it in favor of the new active-child flow is a separate, later Task 5 bite — don't conflate the two selection UIs.
+
+Remaining Task 5 scope: removing the `ReadingSessionPage` dropdown, further responsive/visual polish of the avatar cards, and broader manual verification.
+
 Planned direction beyond this point:
-- Task 5: child-selection screen
 - Task 6: child-specific world and learning path
 - Task 7: reading game
 
@@ -98,6 +104,12 @@ any request failure → error
 
 **Mock `evaluateAnswer` is deterministic, not semantic.** The mock normalizes (trim, lowercase, strip common punctuation, collapse whitespace) both `answerText` and the session's own `question.expectedMeaning`, then checks whether the normalized expected meaning contains the normalized answer (minimum 2 normalized characters, to reject trivial single-letter matches). This lets the current build be exercised manually without a real LLM — it is explicitly *not* the future semantic evaluator, and it never trusts an `expectedMeaning` sent by the client (that field is server-only and never crosses HTTP, per the `expectedMeaning` decision above).
 
+**Active-child identity lives in `ActiveChildProvider`, not the URL.** `/children` (child selection) and `/child-home` (temporary destination) both read/write `activeChildId` through `client/src/context/useActiveChild.js`. The backing `ActiveChildProvider` is mounted once in `App.jsx`, inside `BrowserRouter` but wrapping `Routes`, so the same instance persists across navigation instead of remounting per route. The id is only ever a value in memory — it's never put in the URL and never rendered in the UI, and it does not survive a reload. (`activeChildContext.js`/`ActiveChildProvider.jsx`/`useActiveChild.js` are three separate files, not one, because a file mixing a component export with a hook export trips the `react-refresh/only-export-components` lint rule — don't recombine them.)
+
+**`/child-home` is a temporary destination, not the child's environment.** Selecting a profile on `/children` calls `selectActiveChild(profile.id)` then navigates to `/child-home`. That route exists only to prove the selection flow end-to-end until Task 6 builds the real child-specific world/learning-path screen — it renders no real content of its own. If `/child-home` is reached with no active child set (a direct visit or a reload, since the provider holds no persisted state), it redirects back to `/children` via `<Navigate replace>` rather than rendering anything.
+
+**Avatar rendering is centralized in one function.** `client/src/constants/childAvatars.jsx` exports `getChildAvatar(childProfile)` — the single source every avatar-consuming component calls. It currently always returns the same placeholder icon regardless of the profile, but returns a ready-to-render node rather than a component reference, so a real per-child avatar (image, SVG, URL) later only changes this function's body, not `AvatarButton` or any call site.
+
 ## UI text rule
 
 Do not hardcode child-facing UI text inside:
@@ -124,9 +136,10 @@ All UI text must be stored under stable semantic keys in the localized text sour
 
 ## Component conventions
 
-- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `SelectField`, `Card`, `PageShell`, `FeedbackMessage`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`.
-- `pages/*` — page-level composition (`ReadingSessionPage`, `QuestionStep`) — these *do* know about the domain, own state, and call services, but delegate all HTTP calls to `services/readingSessionService.js`.
+- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `SelectField`, `Card`, `PageShell`, `FeedbackMessage`, `AvatarButton`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`.
+- `pages/*` — page-level composition (`ReadingSessionPage`, `QuestionStep`, `ChildSelectionPage`, `ChildHomePage`) — these *do* know about the domain, own state, and call services, but delegate all HTTP calls to `services/readingSessionService.js`.
 - `styles/<PageName>Style.js` — page-specific styled-components (not reused elsewhere).
+- `context/*` — application-level state that must survive route navigation (currently `ActiveChildProvider`/`useActiveChild`), as opposed to page-local `useState`.
 
 ## Testing conventions
 
@@ -146,7 +159,7 @@ Do not treat review suggestions as permission to make unrelated refactors or bro
 Active branch:
 
 ```text
-feature/reading-session-page
+feature/active-child-navigation
 ```
 
 Create commits only when a step is:
