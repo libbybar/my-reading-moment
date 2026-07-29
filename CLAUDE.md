@@ -14,7 +14,7 @@ A future task may expand the flow to approximately three questions from differen
 
 `client/` is Vite + React + styled-components; `server/` is Express (CommonJS).
 
-## Current milestone: Task 5 — child-selection screen (in progress)
+## Current milestone: Task 6 — child-home learning path (in progress)
 
 Task 4 (answer-and-feedback cycle UI) is done. Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested. 4.2 is also done: `QuestionStep` and `ReadingSessionPage` were fully rewritten to the canonical single-`question` + answer-submission model, the `grammaticalGender` prerequisite was implemented, and the full answer-and-feedback cycle is tested end to end.
 
@@ -23,15 +23,17 @@ Since 4.2 closed, two more focused fixes landed on the same branch:
 - The mock `evaluateAnswer` does deterministic normalized-text matching against `expectedMeaning` instead of accepting any non-blank answer (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
 - A responsive/typography pass was done on `ReadingSessionPageStyle.js` and the shared `components/ui` styles (see "Responsive & typography" below).
 
-Task 5 so far:
-- `/children` is a dedicated route rendering `ChildSelectionPage`, which loads every child profile through the existing `fetchChildProfiles()` service and renders each as a circular `AvatarButton` (avatar + name).
-- Selecting a profile establishes `activeChildId` at application level and navigates to a temporary `/child-home` destination (see "Active-child identity lives in `ActiveChildProvider`" and "`/child-home` is a temporary destination" below).
-- `ReadingSessionPage`'s own child-selection dropdown still exists unchanged and is still how that page picks a child; removing it in favor of the new active-child flow is a separate, later Task 5 bite — don't conflate the two selection UIs.
+Task 5 (child-selection screen) is done and merged: `/children` is a dedicated route rendering `ChildSelectionPage`, which loads every child profile through the existing `fetchChildProfiles()` service and renders each as a circular `AvatarButton` (avatar + name). Selecting a profile establishes `activeChildId` at application level and navigates to `/child-home` (see "Active-child identity lives in `ActiveChildProvider`" below). Removing `ReadingSessionPage`'s own child-selection dropdown was originally going to close out Task 5, but was deliberately rolled into Task 6 instead — it did not ship with Task 5 and `ReadingSessionPage` is unchanged so far.
 
-Remaining Task 5 scope: removing the `ReadingSessionPage` dropdown, further responsive/visual polish of the avatar cards, and broader manual verification.
+Task 6 so far (first bite):
+- `/child-home` is the child's real personal-world screen now, not a placeholder (see "`/child-home` is now the real first version..." below).
+- It resolves the active child's full profile itself (fetch-all + find by `activeChildId`, see "Active profile resolution" below), then shows that child's avatar + name and a gendered welcome heading.
+- Shows a simple vertical path of numbered stations: one active/clickable (step 1), a couple of locked/non-interactive ones (steps 2–3) — see "Stations are numbered..." below.
+- Clicking the active station navigates to `/` (`ReadingSessionPage`) as a temporary bridge; a "switch child" action navigates back to `/children`.
+
+Remaining Task 6 scope: wiring `ReadingSessionPage` to the active child and retiring its own dropdown (the follow-up to the temporary `/` bridge above), the real content behind the locked stations, and broader visual/manual verification.
 
 Planned direction beyond this point:
-- Task 6: child-specific world and learning path
 - Task 7: reading game
 
 ### Implemented in 4.2
@@ -106,9 +108,23 @@ any request failure → error
 
 **Active-child identity lives in `ActiveChildProvider`, not the URL.** `/children` (child selection) and `/child-home` (temporary destination) both read/write `activeChildId` through `client/src/context/useActiveChild.js`. The backing `ActiveChildProvider` is mounted once in `App.jsx`, inside `BrowserRouter` but wrapping `Routes`, so the same instance persists across navigation instead of remounting per route. The id is only ever a value in memory — it's never put in the URL and never rendered in the UI, and it does not survive a reload. (`activeChildContext.js`/`ActiveChildProvider.jsx`/`useActiveChild.js` are three separate files, not one, because a file mixing a component export with a hook export trips the `react-refresh/only-export-components` lint rule — don't recombine them.)
 
-**`/child-home` is a temporary destination, not the child's environment.** Selecting a profile on `/children` calls `selectActiveChild(profile.id)` then navigates to `/child-home`. That route exists only to prove the selection flow end-to-end until Task 6 builds the real child-specific world/learning-path screen — it renders no real content of its own. If `/child-home` is reached with no active child set (a direct visit or a reload, since the provider holds no persisted state), it redirects back to `/children` via `<Navigate replace>` rather than rendering anything.
+**`/child-home` is now the real first version of the child's personal-world screen.** Selecting a profile on `/children` calls `selectActiveChild(profile.id)` then navigates to `/child-home`, which resolves and renders that child's own screen (see "Active profile resolution" and the Task 6 bullets above) — it's no longer a bare placeholder. If `/child-home` is reached with no active child set (a direct visit or a reload, since the provider holds no persisted state), it redirects back to `/children` via `<Navigate replace>` rather than rendering anything. What's still temporary is only the bridge onward from here to reading practice (see "The reading-practice bridge is temporary..." below).
 
 **Avatar rendering is centralized in one function.** `client/src/constants/childAvatars.jsx` exports `getChildAvatar(childProfile)` — the single source every avatar-consuming component calls. It currently always returns the same placeholder icon regardless of the profile, but returns a ready-to-render node rather than a component reference, so a real per-child avatar (image, SVG, URL) later only changes this function's body, not `AvatarButton` or any call site.
+
+**Active profile resolution reuses the existing profile list, not a new endpoint.** `ChildHomePage` resolves the active child by calling the same `fetchChildProfiles()` `ChildSelectionPage` already uses, then finding the profile whose `id` matches `activeChildId`, client-side. No `GET /api/child-profiles/:id` was added — the dataset is small and already fully fetched elsewhere, so a dedicated endpoint now would be premature. An `activeChildId` that matches no fetched profile (stale/unknown id) is treated exactly like "no active child" — redirect to `/children` — rather than a separate error state.
+
+**`ActiveChildProvider` accepts an optional `initialActiveChildId`, for tests only.** It seeds the very first render, the same way `MemoryRouter`'s `initialEntries` do — it is not a controlled prop, `selectActiveChild` is still the only way to change the value after mount, and `App.jsx` never passes it, so production behavior is unchanged. This exists because seeding the context from a wrapping test component's effect races with `ChildHomePage`'s own `<Navigate>` effect, and mutating a different component's state during another component's render is unsafe.
+
+**Stations are numbered, not iconified, and carry no visible caption.** `StationNode` shows a plain step number inside each circle (1 = active, 2/3 = locked) instead of an icon or a caption underneath. The active station relies on the page's own greeting heading to state the action; locked stations need no "coming soon"-style caption, since reaching them is just the natural next step after the active one. Accessibility is carried entirely by composed `aria-label`s instead: the active station's button gets one (e.g. "שלב 1, התחלת תרגול קריאה"); each locked station is a non-interactive `role="group"` with its own (e.g. "שלב 2, נעול") — both built from the shared `stepLabelPrefix`/`lockedStepStatusLabel` text keys.
+
+**`AvatarDisplay` vs `AvatarButton`: a passive display and a clickable control are different components.** `ChildHomePage` shows the active child's avatar via `AvatarDisplay` (a plain, non-interactive wrapper), not `AvatarButton` (a real `<button>`) — reusing a clickable button for something that does nothing on click would be the wrong semantics. Both share the same `AvatarCircle`/`AvatarLabel` styles from `AvatarButtonStyle.js`.
+
+**The reading-practice bridge is temporary and explicitly scoped, not a design decision.** The active station currently just calls `navigate('/')`; `ReadingSessionPage` and its own child-selection dropdown are untouched. Wiring that page to `activeChildId` and retiring its dropdown is a known, tracked Task 6 follow-up bite — the flow should feel like a path to practice rather than a return to a form once that lands.
+
+**The child's name and the welcome heading stay two separate elements.** `ChildHomePage` shows the name via `AvatarDisplay` (raw profile data, same as `ChildSelectionPage` already does) and a fully self-contained, gendered heading via `resolveText('childHome.heading', ...)` — never one sentence with the name interpolated into it. This avoids adding string-interpolation support to `resolveText`/`text.js`, which today only resolves plain strings or `{female,male}` variants.
+
+**`ChildHomeGreeting` is a semantic `<h1>`, styled to look the same as before.** It was originally a styled `<p>`; `font-weight: normal` is set explicitly to counteract the browser's default bold heading weight, so only the semantic tag changed, not the visual design.
 
 ## UI text rule
 
@@ -136,7 +152,7 @@ All UI text must be stored under stable semantic keys in the localized text sour
 
 ## Component conventions
 
-- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `SelectField`, `Card`, `PageShell`, `FeedbackMessage`, `AvatarButton`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`.
+- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `SelectField`, `Card`, `PageShell`, `FeedbackMessage`, `AvatarButton`, `AvatarDisplay`, `StationNode`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`.
 - `pages/*` — page-level composition (`ReadingSessionPage`, `QuestionStep`, `ChildSelectionPage`, `ChildHomePage`) — these *do* know about the domain, own state, and call services, but delegate all HTTP calls to `services/readingSessionService.js`.
 - `styles/<PageName>Style.js` — page-specific styled-components (not reused elsewhere).
 - `context/*` — application-level state that must survive route navigation (currently `ActiveChildProvider`/`useActiveChild`), as opposed to page-local `useState`.
@@ -159,7 +175,7 @@ Do not treat review suggestions as permission to make unrelated refactors or bro
 Active branch:
 
 ```text
-feature/active-child-navigation
+feature/child-home-learning-path
 ```
 
 Create commits only when a step is:

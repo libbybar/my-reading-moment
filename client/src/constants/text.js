@@ -5,9 +5,6 @@ export const LOCALIZED_TEXT = {
     appName: 'רק רגע לקרוא',
     readingSession: {
       heading: 'תרגול קריאה',
-      selectionHeading: 'למי נכין תרגול?',
-      selectionHelperText: 'להתחלת תרגול - נא לבחור ילד/ה',
-      createButtonLabel: 'יצירת תרגול קריאה',
       loading: 'תרגול קריאה נטען...',
       error: 'לא הצלחנו לטעון את תרגול הקריאה.',
       storyLabel: 'הסיפור',

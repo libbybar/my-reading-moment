@@ -22,27 +22,6 @@ export const SectionHeading = styled.h2`
   margin: 0 0 8px;
 `
 
-export const SelectionPanel = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-`
-
-export const SelectionHeading = styled.h2`
-  font-family: ${(props) => props.theme.fonts.main};
-  color: ${(props) => props.theme.colors.primaryDark};
-  font-size: 22px;
-  margin: 0;
-`
-
-export const SelectionHelperText = styled.p`
-  font-family: ${(props) => props.theme.fonts.main};
-  color: ${(props) => props.theme.colors.textMuted};
-  font-size: 15px;
-  margin: 0;
-`
-
 const SectionCard = styled.section`
   border-radius: 16px;
   padding: 20px 24px;

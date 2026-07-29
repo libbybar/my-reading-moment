@@ -2,21 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
+import { MemoryRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from '../src/pages/ReadingSessionPage'
+import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
 
 const LEGACY_QUESTION_TEXT = 'LEGACY TEXT — MUST NOT BE USED'
 
-const DEFAULT_CHILD_PROFILES = [
-  { id: 'mock-child-profile-gaya', name: 'גאיה', grammaticalGender: 'female', readingLevel: 'beginner' },
-]
-
-const TWO_CHILD_PROFILES = [
-  ...DEFAULT_CHILD_PROFILES,
-  { id: 'mock-child-profile-omer', name: 'עומר', grammaticalGender: 'male', readingLevel: 'intermediate' },
-]
+const ACTIVE_CHILD_ID = 'mock-active-child-id'
 
 function buildExercise(grammaticalGender) {
   return {
@@ -39,21 +34,25 @@ function buildExercise(grammaticalGender) {
 
 const mockExercise = buildExercise('female')
 
-function renderPage() {
+function renderPage({ initialActiveChildId = ACTIVE_CHILD_ID } = {}) {
   // Matches main.jsx exactly: StrictMode double-invokes effects in
   // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't.
+  // the real app doesn't. `initialActiveChildId` seeds ActiveChildProvider
+  // deterministically, the same way MemoryRouter's initialEntries do.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
-        <ReadingSessionPage />
+        <ActiveChildProvider initialActiveChildId={initialActiveChildId}>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="/" element={<ReadingSessionPage />} />
+              <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ActiveChildProvider>
       </ThemeProvider>
     </StrictMode>,
   )
-}
-
-function getCreateButton() {
-  return screen.getByRole('button', { name: TEXT.readingSession.createButtonLabel })
 }
 
 function getAnswerField(grammaticalGender = 'female') {
@@ -78,16 +77,8 @@ function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
 }
 
-function defaultChildProfilesHandler() {
-  return okJson({ childProfiles: DEFAULT_CHILD_PROFILES })
-}
-
-function mockFetchRoutes({ childProfiles, preview, answers, nextQuestion }) {
+function mockFetchRoutes({ preview, answers, nextQuestion }) {
   globalThis.fetch = vi.fn((url) => {
-    if (url === '/api/child-profiles') {
-      return (childProfiles ?? defaultChildProfilesHandler)()
-    }
-
     if (url === '/api/reading-sessions/preview') {
       return preview()
     }
@@ -110,19 +101,14 @@ function mockFetchRoutes({ childProfiles, preview, answers, nextQuestion }) {
   })
 }
 
-async function renderWithExerciseLoaded(exercise, answers, nextQuestion, childProfiles) {
+async function renderWithExerciseLoaded(exercise, answers, nextQuestion) {
   mockFetchRoutes({
     preview: () => okJson(exercise),
     answers: answers ?? (() => okJson({})),
     nextQuestion,
-    childProfiles,
   })
 
   renderPage()
-
-  await screen.findByRole('option', { name: 'גאיה' })
-
-  fireEvent.click(getCreateButton())
 
   await screen.findByText(exercise.question.prompt)
 }
@@ -151,95 +137,56 @@ afterEach(() => {
 })
 
 describe('ReadingSessionPage', () => {
-  it('fetches the child-profile list on initial render, but does not fetch the preview yet', async () => {
-    mockFetchRoutes({})
+  it('redirects to /children when there is no active child', async () => {
+    renderPage({ initialActiveChildId: null })
+
+    expect(await screen.findByText('CHILD_SELECTION_SENTINEL')).toBeInTheDocument()
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('automatically requests the preview using the active child id on mount, with no selection step', async () => {
+    mockFetchRoutes({ preview: () => okJson(mockExercise) })
 
     renderPage()
 
-    await screen.findByRole('option', { name: 'גאיה' })
+    await screen.findByText(mockExercise.question.prompt)
 
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/child-profiles')
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/reading-sessions/preview',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ childId: ACTIVE_CHILD_ID }),
+      }),
+    )
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /תרגול/ })).not.toBeInTheDocument()
+  })
+
+  it('calls /preview exactly once under StrictMode double-mounted effects, since it creates a server-side session', async () => {
+    mockFetchRoutes({ preview: () => okJson(mockExercise) })
+
+    renderPage()
+
+    await screen.findByText(mockExercise.question.prompt)
 
     const previewCalls = globalThis.fetch.mock.calls.filter(
       (call) => call[0] === '/api/reading-sessions/preview',
     )
-    expect(previewCalls).toHaveLength(0)
+    expect(previewCalls).toHaveLength(1)
   })
 
-  it('renders both mock child profiles as selectable options', async () => {
-    mockFetchRoutes({
-      childProfiles: () => okJson({ childProfiles: TWO_CHILD_PROFILES }),
-      preview: () => okJson(mockExercise),
-    })
-
-    renderPage()
-
-    expect(await screen.findByRole('option', { name: 'גאיה' })).toBeInTheDocument()
-    expect(await screen.findByRole('option', { name: 'עומר' })).toBeInTheDocument()
-  })
-
-  it('sends mock-child-profile-omer when Omer is selected and the button is clicked', async () => {
-    mockFetchRoutes({
-      childProfiles: () => okJson({ childProfiles: TWO_CHILD_PROFILES }),
-      preview: () => okJson(mockExercise),
-    })
-
-    renderPage()
-
-    await screen.findByRole('option', { name: 'עומר' })
-
-    fireEvent.change(screen.getByRole('combobox'), {
-      target: { value: 'mock-child-profile-omer' },
-    })
-    fireEvent.click(getCreateButton())
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reading-sessions/preview',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ childId: 'mock-child-profile-omer' }),
-      }),
-    )
-  })
-
-  it('sends the selected childId when the button is clicked', async () => {
-    mockFetchRoutes({ preview: () => okJson(mockExercise) })
-    renderPage()
-
-    await screen.findByRole('option', { name: 'גאיה' })
-
-    fireEvent.click(getCreateButton())
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reading-sessions/preview',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ childId: 'mock-child-profile-gaya' }),
-      }),
-    )
-
-    expect(await screen.findByText(mockExercise.title)).toBeInTheDocument()
-  })
-
-  it('shows the loading state and disables the button while waiting', async () => {
+  it('shows the loading state while the preview request is pending', async () => {
     mockFetchRoutes({ preview: () => new Promise(() => {}) })
+
     renderPage()
 
-    await screen.findByRole('option', { name: 'גאיה' })
-
-    fireEvent.click(getCreateButton())
-
-    const button = screen.getByRole('button', { name: TEXT.readingSession.loading })
-    expect(button).toBeDisabled()
+    expect(await screen.findByText(TEXT.readingSession.loading)).toBeInTheDocument()
   })
 
   it('displays the error message when the preview request fails', async () => {
     mockFetchRoutes({ preview: () => Promise.resolve({ ok: false }) })
+
     renderPage()
-
-    await screen.findByRole('option', { name: 'גאיה' })
-
-    fireEvent.click(getCreateButton())
 
     expect(await screen.findByText(TEXT.readingSession.error)).toBeInTheDocument()
   })
@@ -485,10 +432,6 @@ describe('ReadingSessionPage', () => {
 
     renderPage()
 
-    await screen.findByRole('option', { name: 'גאיה' })
-
-    fireEvent.click(getCreateButton())
-
     expect(
       await screen.findByText(
         resolveText('readingSession.noMoreQuestionsFallbackMessage', {
@@ -511,10 +454,6 @@ describe('ReadingSessionPage', () => {
     })
 
     renderPage()
-
-    await screen.findByRole('option', { name: 'גאיה' })
-
-    fireEvent.click(getCreateButton())
 
     expect(
       await screen.findByText(

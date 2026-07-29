@@ -8,10 +8,10 @@ describe('resolveText', () => {
     expect(result).toBe('בדיקת תשובה')
   })
 
-  it('resolves selectionHelperText as a neutral string', () => {
-    const result = resolveText('readingSession.selectionHelperText')
+  it('resolves storyLabel as a neutral string', () => {
+    const result = resolveText('readingSession.storyLabel')
 
-    expect(result).toBe('להתחלת תרגול - נא לבחור ילד/ה')
+    expect(result).toBe('הסיפור')
   })
 
   it('resolves the answer input aria label as a neutral string', () => {
