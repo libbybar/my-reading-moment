@@ -6,8 +6,8 @@ describe('TEXT (legacy compatibility alias)', () => {
     expect(TEXT.readingSession.submitAnswerButtonLabel).toBe('בדיקת תשובה')
   })
 
-  it('exposes the manually-set neutral selectionHelperText wording', () => {
-    expect(TEXT.readingSession.selectionHelperText).toBe('להתחלת תרגול - נא לבחור ילד/ה')
+  it('exposes the manually-set neutral storyLabel wording', () => {
+    expect(TEXT.readingSession.storyLabel).toBe('הסיפור')
   })
 
   it('exposes appName at the top level', () => {

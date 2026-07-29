@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Navigate } from 'react-router'
 import { TEXT } from '../constants/text'
 import { resolveText } from '../constants/resolveText'
-import Button from '../components/ui/Button'
-import SelectField from '../components/ui/SelectField'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
 import PageShell from '../components/ui/PageShell'
 import Card from '../components/ui/Card'
@@ -12,7 +11,7 @@ import {
   submitAnswer,
   fetchNextQuestion,
 } from '../services/readingSessionService'
-import { fetchChildProfiles } from '../services/childProfileService'
+import { useActiveChild } from '../context/useActiveChild'
 import {
   ExerciseContent,
   ExerciseTitle,
@@ -20,9 +19,6 @@ import {
   StoryCard,
   QuestionsCard,
   StoryText,
-  SelectionPanel,
-  SelectionHeading,
-  SelectionHelperText,
 } from '../styles/ReadingSessionPageStyle'
 
 function isValidCanonicalQuestion(question) {
@@ -73,38 +69,46 @@ function isValidReplacementQuestion(response, exercise, question) {
 }
 
 function ReadingSessionPage() {
-  const [childId, setChildId] = useState('')
-  const [childProfiles, setChildProfiles] = useState([])
+  const { activeChildId } = useActiveChild()
   const [exercise, setExercise] = useState(null)
   const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [answerText, setAnswerText] = useState('')
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [questionStatus, setQuestionStatus] = useState('answering')
   const [answerCycleMessage, setAnswerCycleMessage] = useState(null)
   const isSubmittingRef = useRef(false)
   const isGeneratingRef = useRef(false)
+  const exerciseRequestRef = useRef(null)
 
   useEffect(() => {
-    // React's StrictMode (enabled in main.jsx) intentionally mounts every
-    // component twice in development, firing this effect twice back-to-back.
-    // Without this guard, both fetches' responses would apply their state
-    // updates — harmless when both happen to resolve with the same data, but
-    // not resilient to the component unmounting for real before either
-    // settles. `ignore` is the standard pattern for a fetch-in-effect.
+    if (!activeChildId) {
+      return undefined
+    }
+
+    // StrictMode may run this effect twice in development.
+    // `ignore` prevents stale state updates, but it does not prevent duplicate
+    // requests. Because `/preview` creates a server-side session,
+    // `exerciseRequestRef` reuses the request for the same active child.
     let ignore = false
 
-    fetchChildProfiles()
+    if (exerciseRequestRef.current?.childId !== activeChildId) {
+      exerciseRequestRef.current = {
+        childId: activeChildId,
+        promise: fetchReadingExercise(activeChildId),
+      }
+    }
+
+    exerciseRequestRef.current.promise
       .then((data) => {
         if (ignore) {
           return
         }
 
-        setChildProfiles(data.childProfiles)
-
-        if (data.childProfiles.length > 0) {
-          setChildId(data.childProfiles[0].id)
-        }
+        setExercise(data)
+        setCurrentQuestion(data.question)
+        setQuestionStatus('answering')
+        setAnswerText('')
+        setAnswerCycleMessage(null)
       })
       .catch(() => {
         if (!ignore) {
@@ -115,27 +119,7 @@ function ReadingSessionPage() {
     return () => {
       ignore = true
     }
-  }, [])
-
-  const childOptions = childProfiles.map((profile) => ({
-    value: profile.id,
-    label: profile.name,
-  }))
-
-  const handleCreateExercise = () => {
-    setLoading(true)
-
-    fetchReadingExercise(childId)
-      .then((data) => {
-        setExercise(data)
-        setCurrentQuestion(data.question)
-        setQuestionStatus('answering')
-        setAnswerText('')
-        setAnswerCycleMessage(null)
-      })
-      .catch(() => setError(TEXT.readingSession.error))
-      .finally(() => setLoading(false))
-  }
+  }, [activeChildId])
 
   const handleSubmitAnswer = () => {
     // questionStatus guards re-renders; isSubmittingRef guards the same tick,
@@ -223,6 +207,10 @@ function ReadingSessionPage() {
       })
   }
 
+  if (!activeChildId) {
+    return <Navigate to="/children" replace />
+  }
+
   if (error) {
     return (
       <PageShell>
@@ -237,18 +225,7 @@ function ReadingSessionPage() {
     return (
       <PageShell>
         <Card>
-          <SelectionPanel>
-            <SelectionHeading>{TEXT.readingSession.selectionHeading}</SelectionHeading>
-            <SelectionHelperText>{TEXT.readingSession.selectionHelperText}</SelectionHelperText>
-            <SelectField
-              value={childId}
-              onChange={(e) => setChildId(e.target.value)}
-              options={childOptions}
-            />
-            <Button onClick={handleCreateExercise} disabled={loading}>
-              {loading ? TEXT.readingSession.loading : TEXT.readingSession.createButtonLabel}
-            </Button>
-          </SelectionPanel>
+          <FeedbackMessage tone="info">{TEXT.readingSession.loading}</FeedbackMessage>
         </Card>
       </PageShell>
     )
