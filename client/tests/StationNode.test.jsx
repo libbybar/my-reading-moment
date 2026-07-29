@@ -49,4 +49,23 @@ describe('StationNode', () => {
 
     expect(screen.getByRole('group', { name: 'שלב 2, נעול' })).toBeInTheDocument()
   })
+
+  it('renders a completed station with its step number and no visible caption, and not as an accessible button', () => {
+    renderStationNode({ status: 'completed', stepNumber: 1 })
+
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('exposes a composed accessible label for a completed station, combining step and completed status', () => {
+    renderStationNode({ status: 'completed', stepNumber: 1 })
+
+    expect(screen.getByRole('group', { name: 'שלב 1, הושלם' })).toBeInTheDocument()
+  })
+
+  it('does not confuse a completed station with a locked one', () => {
+    renderStationNode({ status: 'completed', stepNumber: 1 })
+
+    expect(screen.queryByRole('group', { name: 'שלב 1, נעול' })).not.toBeInTheDocument()
+  })
 })

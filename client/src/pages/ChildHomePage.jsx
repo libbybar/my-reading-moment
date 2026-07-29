@@ -5,6 +5,7 @@ import { resolveText } from '../constants/resolveText'
 import { fetchChildProfiles } from '../services/childProfileService'
 import { getChildAvatar } from '../constants/childAvatars'
 import { useActiveChild } from '../context/useActiveChild'
+import { useLearningPath } from '../context/useLearningPath'
 import AvatarDisplay from '../components/ui/AvatarDisplay'
 import StationNode from '../components/ui/StationNode'
 import Button from '../components/ui/Button'
@@ -13,13 +14,11 @@ import PageShell from '../components/ui/PageShell'
 import Card from '../components/ui/Card'
 import { ChildHomeHeader, ChildHomeGreeting, StationPath, SwitchChildAction } from '../styles/ChildHomePageStyle'
 
-const LOCKED_STATIONS = [
-  { id: 'locked-station-1', stepNumber: 2 },
-  { id: 'locked-station-2', stepNumber: 3 },
-]
+const TOTAL_STATIONS = 3
 
 function ChildHomePage() {
   const { activeChildId } = useActiveChild()
+  const { progressByChildId } = useLearningPath()
   const navigate = useNavigate()
   const [childProfiles, setChildProfiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -89,6 +88,22 @@ function ChildHomePage() {
     return <Navigate to="/children" replace />
   }
 
+  const completedStepCount = progressByChildId[activeChildId]?.completedStepCount ?? 0
+  const currentActiveStep = completedStepCount + 1
+
+  const stations = Array.from({ length: TOTAL_STATIONS }, (_, index) => {
+    const stepNumber = index + 1
+    let status = 'locked'
+
+    if (stepNumber < currentActiveStep) {
+      status = 'completed'
+    } else if (stepNumber === currentActiveStep) {
+      status = 'active'
+    }
+
+    return { stepNumber, status }
+  })
+
   return (
     <PageShell>
       <Card>
@@ -100,14 +115,16 @@ function ChildHomePage() {
         </ChildHomeHeader>
 
         <StationPath>
-          <StationNode
-            accessibleLabel={TEXT.childHome.activeStationAccessibleLabel}
-            status="active"
-            stepNumber={1}
-            onClick={() => navigate('/')}
-          />
-          {LOCKED_STATIONS.map((station) => (
-            <StationNode key={station.id} status="locked" stepNumber={station.stepNumber} />
+          {stations.map((station) => (
+            <StationNode
+              key={station.stepNumber}
+              status={station.status}
+              stepNumber={station.stepNumber}
+              accessibleLabel={
+                station.status === 'active' ? TEXT.childHome.activeStationAccessibleLabel : undefined
+              }
+              onClick={station.status === 'active' ? () => navigate('/') : undefined}
+            />
           ))}
         </StationPath>
 

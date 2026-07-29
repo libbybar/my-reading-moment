@@ -4,6 +4,8 @@ import {
   ActiveStationCircle,
   LockedStationWrapper,
   LockedStationCircle,
+  CompletedStationWrapper,
+  CompletedStationCircle,
   StepNumber,
 } from '../../styles/components/StationNodeStyle'
 
@@ -21,6 +23,23 @@ function StationNode({ accessibleLabel, status, stepNumber, onClick }) {
           <StepNumber>{stepNumber}</StepNumber>
         </ActiveStationCircle>
       </ActiveStationButton>
+    )
+  }
+
+  if (status === 'completed') {
+    // Not interactive — there is no distinct content behind a station to
+    // revisit yet, so a completed station is a passive "you did this"
+    // marker, not a control. Same numbered circle as the other statuses
+    // (kept "numbered, not iconified"), recolored with the success color to
+    // read as done.
+    const completedAriaLabel = `${TEXT.childHome.stepLabelPrefix} ${stepNumber}, ${TEXT.childHome.completedStepStatusLabel}`
+
+    return (
+      <CompletedStationWrapper role="group" aria-label={completedAriaLabel}>
+        <CompletedStationCircle aria-hidden="true">
+          <StepNumber>{stepNumber}</StepNumber>
+        </CompletedStationCircle>
+      </CompletedStationWrapper>
     )
   }
 

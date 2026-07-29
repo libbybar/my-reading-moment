@@ -17,9 +17,33 @@ function QuestionStep({
   onRequestReplacement,
   replacementActionLabel,
   generatingLabel,
+  onReturnToPath,
+  returnToPathLabel,
+  isReturningToPath,
 }) {
   if (status === 'correct') {
-    return <FeedbackMessage tone="success">{feedbackMessage}</FeedbackMessage>
+    return (
+      <AnswerPanel>
+        <FeedbackMessage tone="success">{feedbackMessage}</FeedbackMessage>
+        <Button onClick={onReturnToPath} disabled={isReturningToPath}>
+          {returnToPathLabel}
+        </Button>
+      </AnswerPanel>
+    )
+  }
+
+  if (status === 'attemptLimitReached') {
+    // Gentle, not punitive: an "info" tone (not "error"), and the only way
+    // forward is back to the path — no further retry loop on this screen.
+    // The child can start the same step over again from there.
+    return (
+      <AnswerPanel>
+        <FeedbackMessage tone="info">{feedbackMessage}</FeedbackMessage>
+        <Button onClick={onReturnToPath} disabled={isReturningToPath}>
+          {returnToPathLabel}
+        </Button>
+      </AnswerPanel>
+    )
   }
 
   if (status === 'retry' || status === 'generating') {

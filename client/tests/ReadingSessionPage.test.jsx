@@ -5,6 +5,8 @@ import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from '../src/pages/ReadingSessionPage'
 import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
+import { LearningPathProvider } from '../src/context/LearningPathProvider'
+import { useLearningPath } from '../src/context/useLearningPath'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
@@ -12,6 +14,19 @@ import { theme } from '../src/styles/theme'
 const LEGACY_QUESTION_TEXT = 'LEGACY TEXT — MUST NOT BE USED'
 
 const ACTIVE_CHILD_ID = 'mock-active-child-id'
+
+// Test-only consumer that surfaces LearningPathProvider's internal state as
+// text, the same way the CHILD_SELECTION_SENTINEL/CHILD_HOME_SENTINEL routes
+// below surface navigation — so a test can assert on recorded progress
+// without needing to render the real ChildHomePage.
+function ProgressProbe() {
+  const { progressByChildId } = useLearningPath()
+  return <div data-testid="progress-probe">{JSON.stringify(progressByChildId)}</div>
+}
+
+function readProgressProbe() {
+  return JSON.parse(screen.getByTestId('progress-probe').textContent)
+}
 
 function buildExercise(grammaticalGender) {
   return {
@@ -34,25 +49,43 @@ function buildExercise(grammaticalGender) {
 
 const mockExercise = buildExercise('female')
 
-function renderPage({ initialActiveChildId = ACTIVE_CHILD_ID } = {}) {
+const QUESTION_1 = mockExercise.question
+const QUESTION_2 = { id: 'test-question-2', passageId: 'test-passage-1', prompt: 'שאלה חדשה 2?' }
+const QUESTION_3 = { id: 'test-question-3', passageId: 'test-passage-1', prompt: 'שאלה חדשה 3?' }
+
+function renderPage({
+  initialActiveChildId = ACTIVE_CHILD_ID,
+  initialProgressByChildId = {},
+} = {}) {
   // Matches main.jsx exactly: StrictMode double-invokes effects in
   // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't. `initialActiveChildId` seeds ActiveChildProvider
-  // deterministically, the same way MemoryRouter's initialEntries do.
+  // the real app doesn't. `initialActiveChildId`/`initialProgressByChildId`
+  // seed ActiveChildProvider/LearningPathProvider deterministically, the
+  // same way MemoryRouter's initialEntries do.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
         <ActiveChildProvider initialActiveChildId={initialActiveChildId}>
-          <MemoryRouter initialEntries={['/']}>
-            <Routes>
-              <Route path="/" element={<ReadingSessionPage />} />
-              <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
-            </Routes>
-          </MemoryRouter>
+          <LearningPathProvider initialProgressByChildId={initialProgressByChildId}>
+            <MemoryRouter initialEntries={['/']}>
+              <Routes>
+                <Route path="/" element={<ReadingSessionPage />} />
+                <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
+                <Route path="/child-home" element={<div>CHILD_HOME_SENTINEL</div>} />
+              </Routes>
+            </MemoryRouter>
+            <ProgressProbe />
+          </LearningPathProvider>
         </ActiveChildProvider>
       </ThemeProvider>
     </StrictMode>,
   )
+}
+
+function getReturnToPathButton() {
+  return screen.getByRole('button', {
+    name: resolveText('readingSession.returnToPathButtonLabel'),
+  })
 }
 
 function getAnswerField(grammaticalGender = 'female') {
@@ -111,6 +144,48 @@ async function renderWithExerciseLoaded(exercise, answers, nextQuestion) {
   renderPage()
 
   await screen.findByText(exercise.question.prompt)
+}
+
+// Drives 3 consecutive wrong answers (each requiring a fresh replacement
+// question in between, matching the real retry flow) to reach
+// attemptLimitReached.
+async function driveThreeIncorrectAttemptsToLimit() {
+  const nextQuestionMock = vi
+    .fn()
+    .mockImplementationOnce(() => okJson({ question: QUESTION_2 }))
+    .mockImplementationOnce(() => okJson({ question: QUESTION_3 }))
+
+  const answersMock = vi
+    .fn()
+    .mockImplementationOnce(() => okJson({ questionId: QUESTION_1.id, isCorrect: false, feedbackType: 'retry' }))
+    .mockImplementationOnce(() => okJson({ questionId: QUESTION_2.id, isCorrect: false, feedbackType: 'retry' }))
+    .mockImplementationOnce(() => okJson({ questionId: QUESTION_3.id, isCorrect: false, feedbackType: 'retry' }))
+
+  mockFetchRoutes({
+    preview: () => okJson(mockExercise),
+    answers: answersMock,
+    nextQuestion: nextQuestionMock,
+  })
+
+  renderPage()
+  await screen.findByText(QUESTION_1.prompt)
+
+  fireEvent.click(getSubmitButton())
+  await screen.findByText(
+    resolveText('readingSession.retryFeedbackMessage', { grammaticalGender: 'female' }),
+  )
+  fireEvent.click(getReplacementButton())
+  await screen.findByText(QUESTION_2.prompt)
+
+  fireEvent.click(getSubmitButton())
+  await screen.findByText(
+    resolveText('readingSession.retryFeedbackMessage', { grammaticalGender: 'female' }),
+  )
+  fireEvent.click(getReplacementButton())
+  await screen.findByText(QUESTION_3.prompt)
+
+  fireEvent.click(getSubmitButton())
+  await screen.findByText(resolveText('readingSession.attemptLimitFeedbackMessage'))
 }
 
 async function renderInRetryState(exercise, nextQuestion) {
@@ -289,6 +364,55 @@ describe('ReadingSessionPage', () => {
     expect(
       await screen.findByText(resolveText('readingSession.correctFeedbackMessage')),
     ).toBeInTheDocument()
+  })
+
+  it('shows a return-to-path action alongside the correct-feedback text', async () => {
+    await renderWithExerciseLoaded(mockExercise, () =>
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+    )
+
+    fireEvent.click(getSubmitButton())
+
+    await screen.findByText(resolveText('readingSession.correctFeedbackMessage'))
+
+    expect(getReturnToPathButton()).toBeInTheDocument()
+  })
+
+  it('clicking the return-to-path action navigates to /child-home and records one completed step for the active child', async () => {
+    await renderWithExerciseLoaded(mockExercise, () =>
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+    )
+
+    fireEvent.click(getSubmitButton())
+    await screen.findByText(resolveText('readingSession.correctFeedbackMessage'))
+
+    fireEvent.click(getReturnToPathButton())
+
+    expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
+    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toEqual({ completedStepCount: 1 })
+  })
+
+  it('uses a synchronous guard so a second return-to-path click cannot advance progress twice', async () => {
+    await renderWithExerciseLoaded(mockExercise, () =>
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+    )
+
+    fireEvent.click(getSubmitButton())
+    await screen.findByText(resolveText('readingSession.correctFeedbackMessage'))
+
+    const returnButton = getReturnToPathButton()
+    fireEvent.click(returnButton)
+
+    // Force the DOM back to an enabled state to prove the in-flight ref
+    // guard — not merely React state or the disabled attribute — is what
+    // blocks a second click, the same pattern already used for the submit
+    // and replacement actions above.
+    returnButton.disabled = false
+    fireEvent.click(returnButton)
+
+    await screen.findByText('CHILD_HOME_SENTINEL')
+
+    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toEqual({ completedStepCount: 1 })
   })
 
   it('displays the resolved retry-feedback text on a retry result, with no input, button, or further requests', async () => {
@@ -730,5 +854,41 @@ describe('ReadingSessionPage', () => {
     expect(screen.getByText(maleRetryText)).toBeInTheDocument()
     expect(screen.queryByText(femaleRetryText)).not.toBeInTheDocument()
     expect(getReplacementButton()).toBeInTheDocument()
+  })
+
+  it('reaches the attempt-limit state after 3 consecutive incorrect answers, offering only a return to path, no further retry loop', async () => {
+    await driveThreeIncorrectAttemptsToLimit()
+
+    expect(
+      screen.getByText(resolveText('readingSession.attemptLimitFeedbackMessage')),
+    ).toBeInTheDocument()
+    expect(getReturnToPathButton()).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: resolveText('readingSession.requestNextQuestionButtonLabel') }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('returning to the path from the attempt limit navigates home without advancing progress', async () => {
+    await driveThreeIncorrectAttemptsToLimit()
+
+    fireEvent.click(getReturnToPathButton())
+
+    expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
+    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toBeUndefined()
+  })
+
+  it('uses the same synchronous guard so a second return-to-path click from the attempt limit cannot advance progress', async () => {
+    await driveThreeIncorrectAttemptsToLimit()
+
+    const returnButton = getReturnToPathButton()
+    fireEvent.click(returnButton)
+
+    returnButton.disabled = false
+    fireEvent.click(returnButton)
+
+    await screen.findByText('CHILD_HOME_SENTINEL')
+
+    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toBeUndefined()
   })
 })

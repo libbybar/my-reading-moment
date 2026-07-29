@@ -20,6 +20,13 @@ const mockPassages = [
         prompt: "איפה גאיה מצאה את הספר?",
         expectedMeaning: "בספרייה",
       },
+
+     {
+        id: "mock-question-3",
+        passageId: "mock-passage-1",
+        prompt: "מי פתחה את הספר?",
+        expectedMeaning: "גאיה",
+      },
     ],
   },
 

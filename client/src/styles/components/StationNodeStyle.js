@@ -24,6 +24,11 @@ export const LockedStationCircle = styled(StationCircle)`
   color: ${(props) => props.theme.colors.textMuted};
 `
 
+export const CompletedStationCircle = styled(StationCircle)`
+  background: ${(props) => props.theme.colors.success};
+  color: ${(props) => props.theme.colors.surface};
+`
+
 export const ActiveStationButton = styled.button`
   display: flex;
   flex-direction: column;
@@ -50,6 +55,20 @@ export const LockedStationWrapper = styled.div`
   width: 96px;
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.textMuted};
+
+  @media (max-width: 480px) {
+    width: 84px;
+  }
+`
+
+export const CompletedStationWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 96px;
+  font-family: ${(props) => props.theme.fonts.main};
+  color: ${(props) => props.theme.colors.text};
 
   @media (max-width: 480px) {
     width: 84px;
