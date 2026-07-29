@@ -34,6 +34,8 @@ export const LOCALIZED_TEXT = {
         male: 'אין כרגע שאלה נוספת על הסיפור הזה. נסה שוב מאוחר יותר.',
       },
       readingGameLabel: 'משחק קריאה',
+      returnToPathButtonLabel: 'חזרה למסלול',
+      attemptLimitFeedbackMessage: 'אין דבר! אפשר לנסות את השלב הזה שוב בפעם אחרת.',
     },
     childSelection: {
       heading: 'למי ניצור תרגול היום?',
@@ -52,6 +54,7 @@ export const LOCALIZED_TEXT = {
       switchChildButtonLabel: 'החלפת ילד/ה',
       stepLabelPrefix: 'שלב',
       lockedStepStatusLabel: 'נעול',
+      completedStepStatusLabel: 'הושלם',
     },
   },
 }

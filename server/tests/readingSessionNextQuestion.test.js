@@ -47,12 +47,19 @@ describe("POST /api/reading-sessions/next-question", () => {
 
     await request(app).post("/api/reading-sessions/next-question").send({ sessionId });
 
-    const secondResponse = await request(app)
+    const thirdSeededQuestionResponse = await request(app)
       .post("/api/reading-sessions/next-question")
       .send({ sessionId });
 
-    expect(secondResponse.statusCode).toBe(200);
-    expect(secondResponse.body.question).toBeNull();
+    expect(thirdSeededQuestionResponse.statusCode).toBe(200);
+    expect(thirdSeededQuestionResponse.body.question).not.toBeNull();
+
+    const exhaustedResponse = await request(app)
+      .post("/api/reading-sessions/next-question")
+      .send({ sessionId });
+
+    expect(exhaustedResponse.statusCode).toBe(200);
+    expect(exhaustedResponse.body.question).toBeNull();
   });
 
   test("returns 400 when sessionId is missing", async () => {

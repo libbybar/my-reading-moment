@@ -3,16 +3,19 @@ import ReadingSessionPage from './pages/ReadingSessionPage'
 import ChildSelectionPage from './pages/ChildSelectionPage'
 import ChildHomePage from './pages/ChildHomePage'
 import { ActiveChildProvider } from './context/ActiveChildProvider'
+import { LearningPathProvider } from './context/LearningPathProvider'
 
 function App() {
   return (
     <BrowserRouter>
       <ActiveChildProvider>
-        <Routes>
-          <Route path="/" element={<ReadingSessionPage />} />
-          <Route path="/children" element={<ChildSelectionPage />} />
-          <Route path="/child-home" element={<ChildHomePage />} />
-        </Routes>
+        <LearningPathProvider>
+          <Routes>
+            <Route path="/" element={<ReadingSessionPage />} />
+            <Route path="/children" element={<ChildSelectionPage />} />
+            <Route path="/child-home" element={<ChildHomePage />} />
+          </Routes>
+        </LearningPathProvider>
       </ActiveChildProvider>
     </BrowserRouter>
   )

@@ -145,7 +145,17 @@ describe("llmProvider (mock)", () => {
         askedQuestionIds: [first.question.id, second.question.id],
       });
 
-      expect(third).toEqual({ status: "exhausted" });
+      expect(third.status).toBe("ok");
+      expect(seededIds).toContain(third.question.id);
+      expect(third.question.id).not.toBe(first.question.id);
+      expect(third.question.id).not.toBe(second.question.id);
+
+      const fourth = await llmProvider.generateQuestion({
+        passage: passageFixture,
+        askedQuestionIds: [first.question.id, second.question.id, third.question.id],
+      });
+
+      expect(fourth).toEqual({ status: "exhausted" });
     });
 
     test("resolves an exhausted result for a passage id with no seeded questions", async () => {
