@@ -85,17 +85,10 @@ function ReadingSessionPage() {
       return undefined
     }
 
-    // React's StrictMode (enabled in main.jsx) intentionally mounts every
-    // component twice in development, firing this effect twice back-to-back.
-    // A plain `ignore` flag only stops the stale run's *response* from being
-    // applied — it does not stop that run's *request* from being sent, and
-    // /preview is not idempotent (it creates a reading session server-side),
-    // so that alone would create an orphan session per mount. `exerciseRequestRef`
-    // caches the in-flight/settled request per child id so fetchReadingExercise
-    // is only ever called once for a given activeChildId; each effect
-    // instance still attaches its own ignore-gated handler to that shared
-    // promise, so whichever instance is actually still mounted is the one
-    // that applies the result.
+    // StrictMode may run this effect twice in development.
+    // `ignore` prevents stale state updates, but it does not prevent duplicate
+    // requests. Because `/preview` creates a server-side session,
+    // `exerciseRequestRef` reuses the request for the same active child.
     let ignore = false
 
     if (exerciseRequestRef.current?.childId !== activeChildId) {
