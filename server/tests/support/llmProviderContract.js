@@ -1,4 +1,47 @@
-function runLlmProviderContractTests(provider, { passage }) {
+function runLlmProviderContractTests(provider, { passage, readingLevel }) {
+  describe("generatePassage", () => {
+    test("resolves a passage with the required shape for a supported reading level", async () => {
+      const result = await provider.generatePassage({ readingLevel, interests: [] });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          title: expect.any(String),
+          text: expect.any(String),
+          readingLevel,
+        }),
+      );
+    });
+
+    test("defaults interests to an empty array when omitted", async () => {
+      const result = await provider.generatePassage({ readingLevel });
+
+      expect(result.readingLevel).toBe(readingLevel);
+    });
+
+    test("rejects when readingLevel is missing", async () => {
+      await expect(provider.generatePassage({ interests: [] })).rejects.toThrow();
+    });
+
+    test("rejects when readingLevel is not a string", async () => {
+      await expect(
+        provider.generatePassage({ readingLevel: 123, interests: [] }),
+      ).rejects.toThrow();
+    });
+
+    test("rejects when readingLevel is blank", async () => {
+      await expect(
+        provider.generatePassage({ readingLevel: "   ", interests: [] }),
+      ).rejects.toThrow();
+    });
+
+    test("rejects when interests is not an array", async () => {
+      await expect(
+        provider.generatePassage({ readingLevel, interests: "not-an-array" }),
+      ).rejects.toThrow();
+    });
+  });
+
   describe("generateQuestion", () => {
     test("resolves a valid status, with the full question shape when one is available", async () => {
       const result = await provider.generateQuestion({ passage, askedQuestionIds: [] });

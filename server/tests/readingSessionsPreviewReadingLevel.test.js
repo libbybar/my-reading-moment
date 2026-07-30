@@ -1,6 +1,7 @@
 // Fixture passages are deliberately ordered with "intermediate" before
 // "beginner" — the opposite of the production mockPassages.js order — so
-// these tests fail if selection ever regresses to picking mockPassages[0].
+// these tests fail if the mock provider's passage supply ever regresses to
+// picking mockPassages[0].
 jest.mock("../src/data/mockPassages", () => [
   {
     id: "fixture-passage-intermediate",
@@ -68,7 +69,7 @@ const mockPassages = require("../src/data/mockPassages");
 const readingSessionStore = require("../src/services/readingSessionStore");
 const llmProvider = require("../src/services/llmProvider");
 
-describe("POST /api/reading-sessions/preview (passage selection by reading level)", () => {
+describe("POST /api/reading-sessions/preview (passage supply by reading level, via the provider)", () => {
   afterEach(() => {
     readingSessionStore.clearSessions();
     jest.restoreAllMocks();

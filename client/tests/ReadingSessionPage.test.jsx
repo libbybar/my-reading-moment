@@ -33,9 +33,6 @@ function buildExercise(grammaticalGender) {
     title: 'הקסם בספרייה',
     story: 'גאיה נכנסה לספרייה ומצאה ספר ישן על פיות. כשהיא פתחה אותו, נפל ממנו עלה ירוק.',
     questions: [LEGACY_QUESTION_TEXT],
-    readingGame: {
-      instruction: 'מצאי בטקסט שתי מילים שמתחילות באות ס׳',
-    },
     passageId: 'test-passage-1',
     sessionId: 'test-session-1',
     question: {
@@ -531,19 +528,6 @@ describe('ReadingSessionPage', () => {
     expect(answerCalls).toHaveLength(1)
 
     resolveAnswers(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
-  })
-
-  it('does not reveal the reading game after a correct result', async () => {
-    await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
-    )
-
-    fireEvent.click(getSubmitButton())
-
-    expect(
-      await screen.findByText(resolveText('readingSession.correctFeedbackMessage')),
-    ).toBeInTheDocument()
-    expect(screen.queryByText(mockExercise.readingGame.instruction)).not.toBeInTheDocument()
   })
 
   it('renders the localized fallback instead of an empty question section when question is null', async () => {

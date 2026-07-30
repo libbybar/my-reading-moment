@@ -1,9 +1,13 @@
 const express = require("express");
 
 const mockChildProfiles = require("../data/mockChildProfiles");
-const mockPassages = require("../data/mockPassages");
 const llmProvider = require("../services/llmProvider");
 const readingSessionStore = require("../services/readingSessionStore");
+const {
+  isValidEvaluationResult,
+  isValidGeneratedQuestion,
+  isValidGeneratedPassage,
+} = require("../services/providerContractValidation");
 
 const router = express.Router();
 
@@ -23,52 +27,8 @@ function toSafeEvaluationResult(result) {
   };
 }
 
-function isValidEvaluationResult(result) {
-  if (!result || typeof result !== "object") {
-    return false;
-  }
-
-  if (typeof result.questionId !== "string" || result.questionId.length === 0) {
-    return false;
-  }
-
-  if (typeof result.isCorrect !== "boolean") {
-    return false;
-  }
-
-  if (result.feedbackType !== "correct" && result.feedbackType !== "retry") {
-    return false;
-  }
-
-  return result.feedbackType === (result.isCorrect ? "correct" : "retry");
-}
-
-function isNonBlankString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function isValidGrammaticalGender(value) {
   return value === "female" || value === "male";
-}
-
-function isValidGeneratedQuestion(question, session) {
-  if (!question || typeof question !== "object") {
-    return false;
-  }
-
-  if (!isNonBlankString(question.id) || !isNonBlankString(question.passageId)) {
-    return false;
-  }
-
-  if (question.passageId !== session.passage.id) {
-    return false;
-  }
-
-  if (!isNonBlankString(question.prompt) || !isNonBlankString(question.expectedMeaning)) {
-    return false;
-  }
-
-  return !session.askedQuestionIds.includes(question.id);
 }
 
 function toPassageSnapshot(passage) {
@@ -108,20 +68,16 @@ router.post("/preview", async (req, res) => {
     });
   }
 
-  const passage = mockPassages.find(
-    (candidate) => candidate.readingLevel === child.readingLevel,
-  );
-
-  if (!passage) {
-    // No mock passage exists at this child's reading level. Same stable
-    // failure shape as any other /preview failure — never expose which
-    // reading level was unmatched.
-    return res.status(500).json({
-      error: PREVIEW_FAILURE_MESSAGE,
-    });
-  }
-
   try {
+    const passage = await llmProvider.generatePassage({
+      readingLevel: child.readingLevel,
+      interests: child.interests,
+    });
+
+    if (!isValidGeneratedPassage(passage, child.readingLevel)) {
+      throw new Error("generatePassage returned an invalid passage");
+    }
+
     const result = await llmProvider.generateQuestion({ passage, askedQuestionIds: [] });
 
     let sessionId = null;
@@ -129,6 +85,15 @@ router.post("/preview", async (req, res) => {
     let legacyQuestions;
 
     if (result.status === "ok") {
+      if (
+        !isValidGeneratedQuestion(result.question, {
+          passageId: passage.id,
+          askedQuestionIds: [],
+        })
+      ) {
+        throw new Error("generateQuestion returned an invalid question");
+      }
+
       const session = readingSessionStore.createSession({
         passage: toPassageSnapshot(passage),
         currentQuestion: result.question,
@@ -154,7 +119,6 @@ router.post("/preview", async (req, res) => {
       // passage's seeded list. No new code should read `questions`; remove it
       // once the client is migrated to `question`.
       questions: legacyQuestions,
-      readingGame: passage.readingGame,
       passageId: passage.id,
       sessionId,
       question: safeQuestion,
@@ -227,7 +191,12 @@ router.post("/next-question", async (req, res) => {
     });
 
     if (result.status === "ok") {
-      if (!isValidGeneratedQuestion(result.question, session)) {
+      if (
+        !isValidGeneratedQuestion(result.question, {
+          passageId: session.passage.id,
+          askedQuestionIds: session.askedQuestionIds,
+        })
+      ) {
         throw new Error("generateQuestion returned an invalid question");
       }
 

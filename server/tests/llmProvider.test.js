@@ -11,7 +11,10 @@ const passageFixture = {
 };
 
 describe("llmProvider (mock)", () => {
-  runLlmProviderContractTests(llmProvider, { passage: passageFixture });
+  runLlmProviderContractTests(llmProvider, {
+    passage: passageFixture,
+    readingLevel: passageFixture.readingLevel,
+  });
 
   describe("mock-specific behavior", () => {
     const passage = { id: "mock-passage-1" };
@@ -165,6 +168,44 @@ describe("llmProvider (mock)", () => {
       });
 
       expect(result).toEqual({ status: "exhausted" });
+    });
+
+    test("selects the seeded passage matching the requested reading level", async () => {
+      const [firstSeedPassage, secondSeedPassage] = mockPassages;
+
+      const beginnerResult = await llmProvider.generatePassage({
+        readingLevel: firstSeedPassage.readingLevel,
+        interests: [],
+      });
+
+      expect(beginnerResult.id).toBe(firstSeedPassage.id);
+
+      const intermediateResult = await llmProvider.generatePassage({
+        readingLevel: secondSeedPassage.readingLevel,
+        interests: [],
+      });
+
+      expect(intermediateResult.id).toBe(secondSeedPassage.id);
+    });
+
+    test("ignores interests when selecting a passage", async () => {
+      const withoutInterests = await llmProvider.generatePassage({
+        readingLevel: seedPassage.readingLevel,
+        interests: [],
+      });
+
+      const withInterests = await llmProvider.generatePassage({
+        readingLevel: seedPassage.readingLevel,
+        interests: ["חלל", "רובוטים"],
+      });
+
+      expect(withInterests.id).toBe(withoutInterests.id);
+    });
+
+    test("rejects when no seeded passage matches the requested reading level", async () => {
+      await expect(
+        llmProvider.generatePassage({ readingLevel: "advanced", interests: [] }),
+      ).rejects.toThrow();
     });
   });
 });
