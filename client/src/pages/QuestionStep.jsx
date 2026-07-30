@@ -65,12 +65,19 @@ function QuestionStep({
 
   const isChecking = status === 'checking'
 
+  function handleAnswerKeyDown(event) {
+    if (event.key === 'Enter' && !isChecking) {
+      onSubmit()
+    }
+  }
+
   return (
     <AnswerPanel>
       <QuestionText>{question.prompt}</QuestionText>
       <TextField
         value={answerText}
         onChange={onAnswerChange}
+        onKeyDown={handleAnswerKeyDown}
         disabled={isChecking}
         placeholder={placeholder}
         ariaLabel={ariaLabel}

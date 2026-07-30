@@ -1,4 +1,4 @@
-const mockPassages = require("../data/mockPassages");
+const mockPassages = require("../../data/mockPassages");
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -17,6 +17,35 @@ function normalizeForComparison(value) {
     .replace(/[.,!?;:"'׳״]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+async function generatePassage({ readingLevel, interests = [] }) {
+  if (!isNonBlankString(readingLevel)) {
+    throw new Error("generatePassage requires a non-blank readingLevel");
+  }
+
+  if (!Array.isArray(interests)) {
+    throw new Error("generatePassage requires interests to be an array");
+  }
+
+  // Mock-specific: the passage is selected from the seeded mock dataset by
+  // readingLevel; interests are accepted for contract-shape parity but
+  // otherwise unused. A real provider would generate new passage text
+  // (personalized via interests) instead of selecting an existing one —
+  // callers and the shared provider contract must not depend on this
+  // selection existing.
+  const passage = mockPassages.find((candidate) => candidate.readingLevel === readingLevel);
+
+  if (!passage) {
+    throw new Error(`No mock passage available for readingLevel: ${readingLevel}`);
+  }
+
+  return {
+    id: passage.id,
+    title: passage.title,
+    text: passage.text,
+    readingLevel: passage.readingLevel,
+  };
 }
 
 async function generateQuestion({ passage, askedQuestionIds = [] }) {
@@ -93,4 +122,4 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-module.exports = { generateQuestion, evaluateAnswer };
+module.exports = { generatePassage, generateQuestion, evaluateAnswer };

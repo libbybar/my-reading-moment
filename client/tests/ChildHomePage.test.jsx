@@ -109,10 +109,11 @@ describe('ChildHomePage', () => {
     await screen.findByText(ACTIVE_PROFILE.name)
 
     expect(screen.getAllByRole('button', { name: ACTIVE_STATION_ACCESSIBLE_NAME })).toHaveLength(1)
-    expect(screen.getAllByRole('group')).toHaveLength(2)
+    // 12 total demo stations, 1 active -> 11 non-interactive (completed/locked) groups.
+    expect(screen.getAllByRole('group')).toHaveLength(11)
   })
 
-  it('numbers the active station as step 1 and the locked stations as steps 2 and 3, with a composed accessible label per locked station', async () => {
+  it('numbers the active station and exposes locked station labels', async () => {
     fetchChildProfiles.mockResolvedValue({ childProfiles: [ACTIVE_PROFILE] })
 
     renderChildHomePage()
@@ -159,9 +160,9 @@ describe('ChildHomePage', () => {
     ).toBeInTheDocument()
 
     // getByRole above already proves exactly one station carries the active
-    // accessible name; this confirms the other two are the non-interactive
-    // completed/locked pair, not some leftover third state.
-    expect(screen.getAllByRole('group')).toHaveLength(2)
+    // accessible name; this confirms the rest are the non-interactive
+    // completed/locked stations, not some leftover extra state.
+    expect(screen.getAllByRole('group')).toHaveLength(11)
   })
 
   it('clicking the new active station after progress still navigates to /', async () => {

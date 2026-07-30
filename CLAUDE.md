@@ -6,66 +6,23 @@ This file exists to preserve architectural decisions and their reasoning across 
 
 My Reading Moment is a Hebrew reading-practice application for children aged 6–10.
 
-The child reads a short passage and answers a free-text comprehension question. Answers may contain reasonable spelling mistakes, so correctness is intended to be evaluated semantically (by a real LLM) rather than through exact string comparison. The current mock `evaluateAnswer` does not do this yet — it uses deterministic normalized-text matching as a temporary stand-in (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
+The child reads a short passage and answers a free-text comprehension question. Answers may contain reasonable spelling mistakes, so correctness is evaluated semantically rather than through exact string comparison — implemented for real via the Gemini provider's `evaluateAnswer` (see "LLM provider architecture" below). The mock provider still uses deterministic normalized-text matching instead, as a lighter stand-in for development and tests (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
 
 If the answer is not accepted, the child receives supportive feedback and may request a different question about the same passage and at the same reading level.
 
-A future task may expand the flow to approximately three questions from different angles per passage. That is not part of the current task.
+A possible future direction is expanding the flow to approximately three questions from different angles per passage — not implemented now.
 
 `client/` is Vite + React + styled-components; `server/` is Express (CommonJS).
 
-## Current milestone: Task 8 — real LLM provider integration (not started)
+## Planned direction
 
-Task 4 (answer-and-feedback cycle UI) is done. Server-side foundation (4.1) is done: `/preview`, `/answers`, `/next-question` all exist and are fully tested. 4.2 is also done: `QuestionStep` and `ReadingSessionPage` were fully rewritten to the canonical single-`question` + answer-submission model, the `grammaticalGender` prerequisite was implemented, and the full answer-and-feedback cycle is tested end to end.
-
-Since 4.2 closed, two more focused fixes landed on the same branch:
-- `/preview` selects the passage by the child's `readingLevel` instead of always using `mockPassages[0]` (see "Passage selection by reading level" below).
-- The mock `evaluateAnswer` does deterministic normalized-text matching against `expectedMeaning` instead of accepting any non-blank answer (see "Mock `evaluateAnswer` is deterministic, not semantic" below).
-- A responsive/typography pass was done on `ReadingSessionPageStyle.js` and the shared `components/ui` styles (see "Responsive & typography" below).
-
-Task 5 (child-selection screen) is done and merged: `/children` is a dedicated route rendering `ChildSelectionPage`, which loads every child profile through the existing `fetchChildProfiles()` service and renders each as a circular `AvatarButton` (avatar + name). Selecting a profile establishes `activeChildId` at application level and navigates to `/child-home` (see "Active-child identity lives in `ActiveChildProvider`" below).
-
-Task 6 (child-home learning path) is done: `/child-home` is the child's real personal-world screen — it resolves the active child's full profile itself (fetch-all + find by `activeChildId`, see "Active profile resolution" below), shows that child's avatar + name and a gendered welcome heading, and a vertical path of numbered stations (see "Stations are numbered..." below). `ReadingSessionPage` is wired to the active child directly and its own child-selection dropdown was retired (see "`ReadingSessionPage` now uses the active child directly..." below) — the `/child-home` → practice bridge is no longer temporary.
-
-Task 7 (learning-path progress loop) is done, on branch `feature/learning-path-progress` (pushed to origin, not yet merged into `main` — ready to merge). It closes the basic game loop: `/children` → `/child-home` → active step → reading practice → correct answer → back to `/child-home` → next step unlocked. See "Learning-path progress is temporary, in-memory, and keyed by child id", "Station status (`completed`/`active`/`locked`) is derived, not stored", "Only a correct answer ever advances learning-path progress", and "After 3 incorrect attempts..." below for the model.
-
-Planned direction beyond this point:
-- Task 8: connect a real LLM provider for Hebrew passage/question generation. The provider contract, session store, and the `expectedMeaning`-never-crosses-HTTP boundary (see "Core architectural decisions" below) were deliberately designed to be provider-agnostic — this task should mainly add a new provider module behind the existing `llmProvider` contract, not change routes. The mock provider (which already supports both `generateQuestion` and `evaluateAnswer`) stays the default for tests; `tests/support/llmProviderContract.js` is written to be re-runnable against the real provider unchanged.
-
-### Implemented in 4.2
-
-- storing the child's answer in client state
-- submitting the answer through `submitAnswer`
-- explicit `answering`, `checking`, `correct`, `retry`, `generating`, and `error` states
-- preventing duplicate submissions while a request is pending
-- displaying feedback selected through semantic text keys
-- requiring an explicit child action before requesting a replacement question
-- requesting a replacement question through the existing session-based server flow
-- replacing only the current question while keeping the same passage
-- clearing the answer input when a new question is displayed
-- resolving child-facing text according to language and grammatical gender
-- automated tests for the full answer-and-feedback cycle
-
-### Out of scope (as of 4.2)
-
-- connecting a real LLM
-- success animation
-- a three-question flow for each passage
-- database persistence
-- progress summaries
-- parent feedback
-- parent-facing progress tables
-- session-completion screens
-
-("transition to the next learning stage" and "question or attempt limits" were also on this list originally — both shipped in Task 7, see below.)
-
-### Out of scope (Task 7)
-
-- database persistence — progress is in-memory only (`LearningPathProvider` state), lost on reload; see "Learning-path progress is temporary..." below
-- a real LLM
-- a full multi-level curriculum system — the station count (3) is fixed, not data-driven
-- redesigning the learning-path UI beyond adding the third `completed` station state
-- recording an attempt-limit as a real "failure" anywhere durable, or using it to adjust future story difficulty — the current gentle attempt-limit message is deliberately silent about this to the child; both require the database persistence this task also excludes
+- Persistent storage: MongoDB, parent accounts with authentication, and child profiles owned by a parent account — replacing the current mocked/in-memory data entirely.
+- Further logging/security hardening, if anything from "Debug logging" below is still incomplete.
+- Docker.
+- `LICENSES_ALL` (dependency license auditing).
+- CI release/tag deliverables.
+- Optional LLM latency optimizations: caching, pre-generation, or a combined initial passage+question generation call (a deliberate trade-off in the current LLM provider architecture — see "LLM provider architecture" below).
+- Success animation, progress summaries, parent feedback, parent-facing progress tables, and session-completion screens are all still out of scope — none of these exist yet.
 
 ## Grammatical-gender rule
 
@@ -90,7 +47,7 @@ There is no default grammatical gender. Missing or unsupported grammatical gende
 
 **`"exhausted"` is a mock artifact, not a product state.** The current mock has a finite seeded question list per passage and can run out; a real LLM wouldn't. It's handled as a graceful fallback (`{question: null}` from `/next-question`), explicitly *not* one of the UI's named states. Session/question-count limits (a real product concept) will be designed separately later — don't conflate the two.
 
-**Provider contract is intentionally minimal and mock-agnostic.** `generateQuestion({passage, askedQuestionIds})` only requires `passage.id/text/readingLevel` (what a real generator actually needs) — the mock's own lookup into `mockPassages` by `id` is an internal implementation detail, asserted nowhere in the shared contract tests (`tests/support/llmProviderContract.js`). That shared suite is written to be re-runnable against a future real provider unchanged. Routes never branch on mock-vs-real — proven by tests that stub the provider module and check the route only forwards its output.
+**Provider contract is intentionally minimal and mock-agnostic.** `generateQuestion({passage, askedQuestionIds})` only requires `passage.id/text/readingLevel` (what a real generator actually needs) — the mock's own lookup into `mockPassages` by `id` is an internal implementation detail, asserted nowhere in the shared contract tests (`tests/support/llmProviderContract.js`). That shared suite now runs, unchanged, against both `mockProvider.js` and `geminiProvider.js` (see `mockProvider.test.js`/`geminiProvider.test.js`) — the re-runnability held up in practice, not just in theory. Routes never branch on mock-vs-real — proven by tests that stub the provider module and check the route only forwards its output.
 
 **Session store stays minimal on purpose.** Only `createSession`, `getSession`, `replaceCurrentQuestion`, and a test-only `clearSessions`. No generic `updateSession(id, patch)` — that would permit arbitrary mutations before the retry/next-question transition rules are even defined. Add focused, named mutations only, as new flows need them.
 
@@ -99,7 +56,7 @@ There is no default grammatical gender. Missing or unsupported grammatical gende
 **Answer-cycle flow:**
 ```
 answering → checking → correct                (checkpoint, NOT session completion —
-                                                 a future task adds an animation + stage
+                                                 a later step may add an animation + stage
                                                  transition here; don't treat it as terminal)
 answering → checking → retry → [user clicks "another question"] → generating → answering
 any request failure → error
@@ -112,7 +69,7 @@ any request failure → error
 
 **Active-child identity lives in `ActiveChildProvider`, not the URL.** `/children` (child selection) and `/child-home` (temporary destination) both read/write `activeChildId` through `client/src/context/useActiveChild.js`. The backing `ActiveChildProvider` is mounted once in `App.jsx`, inside `BrowserRouter` but wrapping `Routes`, so the same instance persists across navigation instead of remounting per route. The id is only ever a value in memory — it's never put in the URL and never rendered in the UI, and it does not survive a reload. (`activeChildContext.js`/`ActiveChildProvider.jsx`/`useActiveChild.js` are three separate files, not one, because a file mixing a component export with a hook export trips the `react-refresh/only-export-components` lint rule — don't recombine them.)
 
-**`/child-home` is now the real first version of the child's personal-world screen.** Selecting a profile on `/children` calls `selectActiveChild(profile.id)` then navigates to `/child-home`, which resolves and renders that child's own screen (see "Active profile resolution" and the Task 6 bullets above) — it's no longer a bare placeholder. If `/child-home` is reached with no active child set (a direct visit or a reload, since the provider holds no persisted state), it redirects back to `/children` via `<Navigate replace>` rather than rendering anything.
+**`/child-home` is now the real first version of the child's personal-world screen.** Selecting a profile on `/children` calls `selectActiveChild(profile.id)` then navigates to `/child-home`, which resolves and renders that child's own screen (see "Active profile resolution" above) — it's no longer a bare placeholder. If `/child-home` is reached with no active child set (a direct visit or a reload, since the provider holds no persisted state), it redirects back to `/children` via `<Navigate replace>` rather than rendering anything.
 
 **Avatar rendering is centralized in one function.** `client/src/constants/childAvatars.jsx` exports `getChildAvatar(childProfile)` — the single source every avatar-consuming component calls. It currently always returns the same placeholder icon regardless of the profile, but returns a ready-to-render node rather than a component reference, so a real per-child avatar (image, SVG, URL) later only changes this function's body, not `AvatarButton` or any call site.
 
@@ -134,15 +91,37 @@ any request failure → error
 
 **`fetchReadingExercise` (`/preview`) is deduplicated per mount, not just per response.** A plain `ignore` flag (the standard fetch-in-effect pattern used elsewhere) only discards a *stale response* — it does not stop a stale *request* from being sent, and `/preview` is not idempotent (it creates a server-side session). `ReadingSessionPage` caches the in-flight/settled request in a ref keyed by `activeChildId`, so `fetchReadingExercise` is only ever called once per child under React StrictMode's double-invoked mount effect — each effect instance still attaches its own `ignore`-gated handler to the shared promise. Without this, StrictMode's dev-only double mount would silently create an orphan session per page load.
 
-**Learning-path progress is temporary, in-memory, and keyed by child id.** `LearningPathProvider`/`useLearningPath` (`client/src/context/`, mirroring `ActiveChildProvider`'s three-file split — same `react-refresh/only-export-components` reason) hold `progressByChildId: { [childId]: { completedStepCount } }`, mounted once in `App.jsx` alongside `ActiveChildProvider` so it survives navigation. Keyed per child, not a single global counter, so switching the active child mid-session can't leak one child's progress onto another's stations. It is explicitly not persisted — lost on reload — and not a database "session" concept; see "Out of scope (Task 7)" above.
+**Learning-path progress is temporary, in-memory, and keyed by child id.** `LearningPathProvider`/`useLearningPath` (`client/src/context/`, mirroring `ActiveChildProvider`'s three-file split — same `react-refresh/only-export-components` reason) hold `progressByChildId: { [childId]: { completedStepCount } }`, mounted once in `App.jsx` alongside `ActiveChildProvider` so it survives navigation. Keyed per child, not a single global counter, so switching the active child mid-session can't leak one child's progress onto another's stations. It is explicitly not persisted — lost on reload — and not a database "session" concept.
 
 **Station status (`completed`/`active`/`locked`) is derived, not stored.** `ChildHomePage` computes `currentActiveStep = completedStepCount + 1` and classifies each of the fixed 3 stations from that one number (`< currentActiveStep` → completed, `===` → active, `>` → locked) — there is no separately-stored "which step is active" field. This makes "exactly one active station" an invariant of the arithmetic rather than something that could desync across two fields.
 
 **Only a correct answer ever advances learning-path progress.** `ReadingSessionPage`'s `handleReturnToPath(shouldAdvanceProgress)` is the single call site for `completeNextLearningPathStep` (`useLearningPath`) — called with `true` only from the `correct` state's return-to-path action, `false` from the attempt-limit state's. Wrong answers, replacement questions, and request errors never touch progress. Both call sites share one `hasReturnedToPathRef` guard against a double-click firing `navigate()` (and, for the correct path, the progress update) twice, since `navigate()` doesn't unmount the component synchronously.
 
-**After 3 incorrect attempts, the child returns to the path without advancing progress — no further retry loop.** `MAX_INCORRECT_ATTEMPTS = 3` in `ReadingSessionPage`; `incorrectAttemptCount` persists across "another question" replacements within one visit (it has to, to ever reach the limit) and is never reset — once `attemptLimitReached` is reached, returning to `/child-home` is the only action, so the same step simply stays active and the child can start it again from there. The message shown is a single gentle, gender-neutral string (not a `{female,male}` variant, since it avoids conjugated verbs) that never uses "wrong" or "failed" language — the child is not told this was tracked as anything. This is a deliberate seam for a later feature (recording the attempt server-side and adjusting the next generated passage's difficulty), explicitly not implemented now — see "Out of scope (Task 7)" above.
+**After 3 incorrect attempts, the child returns to the path without advancing progress — no further retry loop.** `MAX_INCORRECT_ATTEMPTS = 3` in `ReadingSessionPage`; `incorrectAttemptCount` persists across "another question" replacements within one visit (it has to, to ever reach the limit) and is never reset — once `attemptLimitReached` is reached, returning to `/child-home` is the only action, so the same step simply stays active and the child can start it again from there. The message shown is a single gentle, gender-neutral string (not a `{female,male}` variant, since it avoids conjugated verbs) that never uses "wrong" or "failed" language — the child is not told this was tracked as anything. This is a deliberate seam for a later feature (recording the attempt server-side and adjusting the next generated passage's difficulty), explicitly not implemented now.
 
 **`StationNode` has three statuses, not two.** `completed` reuses the same numbered-circle pattern as `active`/`locked` (per "Stations are numbered, not iconified" above) — only the circle's color changes (`theme.colors.success`), keeping that established convention instead of introducing icons. Like `locked`, it renders as a non-interactive `role="group"` (composed accessible label via `stepLabelPrefix`/`completedStepStatusLabel`), since there's no distinct per-station content to revisit yet.
+
+## LLM provider architecture
+
+The provider contract has three functions — `generatePassage({readingLevel, interests})`, `generateQuestion({passage, askedQuestionIds})`, `evaluateAnswer({passage, question, answerText})` — implemented identically by two providers:
+
+- `mockProvider.js` — deterministic, selects from seeded `mockPassages`/questions. Default, and what every automated test runs against.
+- `geminiProvider.js` — real generation via the Gemini API. Selected with `LLM_PROVIDER=gemini` (`GEMINI_API_KEY` required, `GEMINI_MODEL` optional).
+
+`server/src/services/llmProvider/index.js` is a selector, resolved once at require-time from `LLM_PROVIDER` (default `"mock"`); it re-exports the chosen provider's own exports object, not a copy, so existing `jest.spyOn` usage keeps working. **Routes stay provider-agnostic** — `readingSessionRoutes.js` only ever calls `llmProvider.*`, never checks or branches on which provider is active.
+
+`geminiClient.js` is the only module that imports `@google/genai` — response schemas, the actual API call, and model selection all live there; `geminiProvider.js` never touches the SDK directly. Prompt construction (including per-`readingLevel` guidance for passage length/vocabulary/nikud and question difficulty) lives entirely in `prompts.js`, kept separate so it can be iterated on without touching orchestration or validation logic. Gemini is only ever trusted for prose (title/text, prompt/expectedMeaning, isCorrect) — structural fields (`id`, `readingLevel`, `passageId`) are always assigned by `geminiProvider.js`, never taken from the model's output.
+
+Gemini's `generatePassage`/`generateQuestion` are two independent API calls, not one combined call — `generateQuestion` needs the passage's actual text either way (for both `/preview`'s first question and `/next-question`'s replacements), so a real provider's `generateQuestion` has to work standalone regardless of how `/preview` is wired; reusing it for the first question costs nothing extra. This is the trade-off a combined-call optimization (see "Planned direction" above) would revisit.
+
+## Debug logging
+
+`server/src/services/debugLogger.js` (`writeDebugLog`, `runWithRequestId`) is a temporary perf/debug aid, not the app's logging system — it writes JSON Lines to `server/logs/timing.jsonl`, used by both `geminiClient.js` (timing per Gemini call, tagged `"LLM"`) and `readingSessionRoutes.js` (per-request timing and thrown-error details, tagged `"Route"`/`"Error"`).
+
+- **Opt-in only.** Nothing is written unless `TIMING_LOG_ENABLED=true`; automated tests never write regardless of the flag (`NODE_ENV=test`, set automatically by Jest, is a hard override, not just a default).
+- **Best-effort.** The file write is wrapped in `try/catch` — a failure (missing dir, disk error) never breaks the request it's logging; it only prints one short `console.warn`, with the filesystem error's own message but never the log entry itself.
+- **`requestId` correlates route and LLM logs automatically**, via `runWithRequestId` (Node's `AsyncLocalStorage`) — a route handler starts it once per request, and every `writeDebugLog` call made anywhere during that request (including deep inside `geminiClient.js`) picks up the same id, with no need to thread it through `generatePassage`/`generateQuestion`/`evaluateAnswer`'s own parameters. Keeping it out of the provider contract is deliberate — request correlation is a debugging concern, not something the contract should know about.
+- **Never logged:** prompt text, child answers, generated passage/question/`expectedMeaning` content, or any secret (API keys, etc). Entries carry only metadata — durations, labels, lengths (`textLength`/`promptLength`), `readingLevel`, the Gemini `model` name, and (on error) the error's own name/message/status.
 
 ## UI text rule
 
@@ -193,7 +172,7 @@ Do not treat review suggestions as permission to make unrelated refactors or bro
 Active branch:
 
 ```text
-feature/learning-path-progress
+feature/real-llm-provider
 ```
 
 Create commits only when a step is:

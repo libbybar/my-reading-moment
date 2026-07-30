@@ -22,7 +22,6 @@ describe("POST /api/reading-sessions/preview", () => {
       title: passage.title,
       story: passage.text,
       questions: [passage.questions[0].prompt],
-      readingGame: passage.readingGame,
       passageId: passage.id,
       sessionId: expect.any(String),
       question: {

@@ -62,6 +62,10 @@ describe("POST /api/reading-sessions/answers (provider integration)", () => {
     ["missing questionId", { isCorrect: true, feedbackType: "correct" }],
     ["non-string questionId", { questionId: 123, isCorrect: true, feedbackType: "correct" }],
     ["empty questionId", { questionId: "", isCorrect: true, feedbackType: "correct" }],
+    [
+      "mismatched questionId",
+      { questionId: "some-other-question-id", isCorrect: true, feedbackType: "correct" },
+    ],
     ["non-boolean isCorrect", { questionId: "q1", isCorrect: "yes", feedbackType: "correct" }],
     ["invalid feedbackType", { questionId: "q1", isCorrect: true, feedbackType: "great" }],
     [

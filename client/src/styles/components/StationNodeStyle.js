@@ -1,16 +1,19 @@
 import styled from 'styled-components'
 
 const StationCircle = styled.div`
-  width: 72px;
-  height: 72px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Bottom-offset shadow gives the circle a puffy, physical "game piece"
+     feel instead of a flat disc. */
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
 
   @media (max-width: 480px) {
-    width: 64px;
-    height: 64px;
+    width: 48px;
+    height: 48px;
   }
 `
 
@@ -29,49 +32,67 @@ export const CompletedStationCircle = styled(StationCircle)`
   color: ${(props) => props.theme.colors.surface};
 `
 
+// position: relative + z-index give each station its own stacking context,
+// so it reliably paints above ChildHomePageStyle.js's StationRow path line
+// and StationRowConnector (both z-index: 0) instead of being covered by them.
 export const ActiveStationButton = styled.button`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 96px;
+  width: 64px;
   border: none;
   background: none;
   padding: 0;
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
   cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:hover {
+    transform: scale(1.08) translateY(-2px);
+  }
+
+  &:active {
+    transform: scale(1.02) translateY(1px);
+  }
 
   @media (max-width: 480px) {
-    width: 84px;
+    width: 56px;
   }
 `
 
 export const LockedStationWrapper = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 96px;
+  width: 64px;
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.textMuted};
 
   @media (max-width: 480px) {
-    width: 84px;
+    width: 56px;
   }
 `
 
 export const CompletedStationWrapper = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 96px;
+  width: 64px;
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
 
   @media (max-width: 480px) {
-    width: 84px;
+    width: 56px;
   }
 `
 

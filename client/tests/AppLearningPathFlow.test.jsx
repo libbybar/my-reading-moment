@@ -29,7 +29,6 @@ const EXERCISE = {
   title: 'הקסם בספרייה',
   story: 'גאיה נכנסה לספרייה ומצאה ספר ישן על פיות. כשהיא פתחה אותו, נפל ממנו עלה ירוק.',
   questions: [],
-  readingGame: { instruction: 'מצאי בטקסט שתי מילים שמתחילות באות ס׳' },
   passageId: 'test-passage-1',
   sessionId: 'test-session-1',
   question: { id: 'test-question-1', passageId: 'test-passage-1', prompt: 'מה נפל מתוך הספר?' },

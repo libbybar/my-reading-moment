@@ -33,7 +33,6 @@ export const LOCALIZED_TEXT = {
         female: 'אין כרגע שאלה נוספת על הסיפור הזה. נסי שוב מאוחר יותר.',
         male: 'אין כרגע שאלה נוספת על הסיפור הזה. נסה שוב מאוחר יותר.',
       },
-      readingGameLabel: 'משחק קריאה',
       returnToPathButtonLabel: 'חזרה למסלול',
       attemptLimitFeedbackMessage: 'אין דבר! אפשר לנסות את השלב הזה שוב בפעם אחרת.',
     },
