@@ -1,4 +1,4 @@
-const llmProvider = require("../src/services/llmProvider");
+const mockProvider = require("../src/services/llmProvider/mockProvider");
 const mockPassages = require("../src/data/mockPassages");
 const { runLlmProviderContractTests } = require("./support/llmProviderContract");
 
@@ -10,8 +10,8 @@ const passageFixture = {
   readingLevel: seedPassage.readingLevel,
 };
 
-describe("llmProvider (mock)", () => {
-  runLlmProviderContractTests(llmProvider, {
+describe("mockProvider", () => {
+  runLlmProviderContractTests(mockProvider, {
     passage: passageFixture,
     readingLevel: passageFixture.readingLevel,
   });
@@ -26,7 +26,7 @@ describe("llmProvider (mock)", () => {
     };
 
     test("evaluates an exact-match answer as correct", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question: { ...question, expectedMeaning: "עלה ירוק" },
         answerText: "עלה ירוק",
@@ -40,7 +40,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("evaluates an answer that is a meaningful substring of the expected meaning as correct", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question,
         answerText: "עלה ירוק",
@@ -54,7 +54,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("evaluates a clearly wrong answer as retry", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question: { ...question, expectedMeaning: "רובוט קטן בשם רובו" },
         answerText: "מכונית",
@@ -68,7 +68,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("evaluates a blank answer as retry", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question,
         answerText: "   ",
@@ -82,7 +82,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("evaluates a whitespace-only answer (tabs and newlines) as retry", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question,
         answerText: "\t\n  ",
@@ -96,7 +96,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("normalizes punctuation and extra internal spacing before comparing", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question: { ...question, expectedMeaning: "עלה ירוק" },
         answerText: "  עלה,   ירוק!  ",
@@ -110,7 +110,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("does not treat an answer below the minimum meaningful length as a match", async () => {
-      const result = await llmProvider.evaluateAnswer({
+      const result = await mockProvider.evaluateAnswer({
         passage,
         question: { ...question, expectedMeaning: "בספרייה" },
         answerText: "ב",
@@ -126,7 +126,7 @@ describe("llmProvider (mock)", () => {
     test("selects candidate questions from the seeded mock dataset, without repeats, until exhausted", async () => {
       const seededIds = seedPassage.questions.map((seededQuestion) => seededQuestion.id);
 
-      const first = await llmProvider.generateQuestion({
+      const first = await mockProvider.generateQuestion({
         passage: passageFixture,
         askedQuestionIds: [],
       });
@@ -134,7 +134,7 @@ describe("llmProvider (mock)", () => {
       expect(first.status).toBe("ok");
       expect(seededIds).toContain(first.question.id);
 
-      const second = await llmProvider.generateQuestion({
+      const second = await mockProvider.generateQuestion({
         passage: passageFixture,
         askedQuestionIds: [first.question.id],
       });
@@ -143,7 +143,7 @@ describe("llmProvider (mock)", () => {
       expect(seededIds).toContain(second.question.id);
       expect(second.question.id).not.toBe(first.question.id);
 
-      const third = await llmProvider.generateQuestion({
+      const third = await mockProvider.generateQuestion({
         passage: passageFixture,
         askedQuestionIds: [first.question.id, second.question.id],
       });
@@ -153,7 +153,7 @@ describe("llmProvider (mock)", () => {
       expect(third.question.id).not.toBe(first.question.id);
       expect(third.question.id).not.toBe(second.question.id);
 
-      const fourth = await llmProvider.generateQuestion({
+      const fourth = await mockProvider.generateQuestion({
         passage: passageFixture,
         askedQuestionIds: [first.question.id, second.question.id, third.question.id],
       });
@@ -162,7 +162,7 @@ describe("llmProvider (mock)", () => {
     });
 
     test("resolves an exhausted result for a passage id with no seeded questions", async () => {
-      const result = await llmProvider.generateQuestion({
+      const result = await mockProvider.generateQuestion({
         passage: { ...passageFixture, id: "unknown-passage" },
         askedQuestionIds: [],
       });
@@ -173,14 +173,14 @@ describe("llmProvider (mock)", () => {
     test("selects the seeded passage matching the requested reading level", async () => {
       const [firstSeedPassage, secondSeedPassage] = mockPassages;
 
-      const beginnerResult = await llmProvider.generatePassage({
+      const beginnerResult = await mockProvider.generatePassage({
         readingLevel: firstSeedPassage.readingLevel,
         interests: [],
       });
 
       expect(beginnerResult.id).toBe(firstSeedPassage.id);
 
-      const intermediateResult = await llmProvider.generatePassage({
+      const intermediateResult = await mockProvider.generatePassage({
         readingLevel: secondSeedPassage.readingLevel,
         interests: [],
       });
@@ -189,12 +189,12 @@ describe("llmProvider (mock)", () => {
     });
 
     test("ignores interests when selecting a passage", async () => {
-      const withoutInterests = await llmProvider.generatePassage({
+      const withoutInterests = await mockProvider.generatePassage({
         readingLevel: seedPassage.readingLevel,
         interests: [],
       });
 
-      const withInterests = await llmProvider.generatePassage({
+      const withInterests = await mockProvider.generatePassage({
         readingLevel: seedPassage.readingLevel,
         interests: ["חלל", "רובוטים"],
       });
@@ -204,7 +204,7 @@ describe("llmProvider (mock)", () => {
 
     test("rejects when no seeded passage matches the requested reading level", async () => {
       await expect(
-        llmProvider.generatePassage({ readingLevel: "advanced", interests: [] }),
+        mockProvider.generatePassage({ readingLevel: "advanced", interests: [] }),
       ).rejects.toThrow();
     });
   });

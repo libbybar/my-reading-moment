@@ -1,4 +1,4 @@
-const mockPassages = require("../data/mockPassages");
+const mockPassages = require("../../data/mockPassages");
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
