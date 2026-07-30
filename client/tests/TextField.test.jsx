@@ -35,6 +35,15 @@ describe('TextField', () => {
     expect(handleChange).toHaveBeenCalled()
   })
 
+  it('calls onKeyDown when a key is pressed', () => {
+    const handleKeyDown = vi.fn()
+    renderTextField({ onKeyDown: handleKeyDown, ariaLabel: 'Answer' })
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Answer' }), { key: 'Enter' })
+
+    expect(handleKeyDown).toHaveBeenCalled()
+  })
+
   it('respects the disabled prop', () => {
     renderTextField({ disabled: true, ariaLabel: 'Answer' })
 

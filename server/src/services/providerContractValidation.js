@@ -2,12 +2,16 @@ function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isValidEvaluationResult(result) {
+function isValidEvaluationResult(result, expectedQuestionId) {
   if (!result || typeof result !== "object") {
     return false;
   }
 
   if (typeof result.questionId !== "string" || result.questionId.length === 0) {
+    return false;
+  }
+
+  if (result.questionId !== expectedQuestionId) {
     return false;
   }
 

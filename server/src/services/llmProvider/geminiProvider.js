@@ -23,6 +23,11 @@ async function generatePassage({ readingLevel, interests = [] }) {
   const content = await geminiClient.generateJson({
     prompt: buildPassagePrompt({ readingLevel, interests }),
     responseSchema: geminiClient.PASSAGE_RESPONSE_SCHEMA,
+    label: "Gemini: generatePassage",
+    describeResult: (result) => ({
+      readingLevel,
+      textLength: typeof result.text === "string" ? result.text.length : null,
+    }),
   });
 
   if (!isNonBlankString(content.title) || !isNonBlankString(content.text)) {
@@ -54,6 +59,11 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
   const content = await geminiClient.generateJson({
     prompt: buildQuestionPrompt({ passage }),
     responseSchema: geminiClient.QUESTION_RESPONSE_SCHEMA,
+    label: "Gemini: generateQuestion",
+    describeResult: (result) => ({
+      readingLevel: passage.readingLevel,
+      promptLength: typeof result.prompt === "string" ? result.prompt.length : null,
+    }),
   });
 
   if (!isNonBlankString(content.prompt) || !isNonBlankString(content.expectedMeaning)) {
@@ -93,6 +103,7 @@ async function evaluateAnswer({ passage, question, answerText }) {
   const content = await geminiClient.generateJson({
     prompt: buildEvaluationPrompt({ question, answerText }),
     responseSchema: geminiClient.EVALUATION_RESPONSE_SCHEMA,
+    label: "Gemini: evaluateAnswer",
   });
 
   if (typeof content.isCorrect !== "boolean") {

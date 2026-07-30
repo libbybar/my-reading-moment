@@ -1,5 +1,7 @@
 const { GoogleGenAI, Type } = require("@google/genai");
 
+const { writeDebugLog } = require("../debugLogger");
+
 const apiKey = process.env.GEMINI_API_KEY;
 
 if (!apiKey || apiKey.trim().length === 0) {
@@ -44,20 +46,46 @@ const EVALUATION_RESPONSE_SCHEMA = {
 // a plain JS object, never the raw SDK response — this is the only module
 // that imports @google/genai, so swapping providers or SDKs later only
 // touches this file.
-async function generateJson({ prompt, responseSchema }) {
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema,
-    },
-  });
+//
+// `label` is optional and only used for the timing log below — it has no
+// effect on the request itself. The start time lives in a local variable per
+// call (not a shared/global registry), so overlapping calls never collide
+// with each other the way console.time/console.timeEnd's shared label
+// registry did.
+//
+// `describeResult` is also debug-only: an optional `(content) => {...}` that
+// gets to add extra fields (e.g. text length, reading level) to the log
+// entry. Kept out of this function itself since generateJson's result shape
+// is different for every caller (passage vs question vs evaluation) — only
+// geminiProvider.js actually knows what "length" means for each one.
+async function generateJson({ prompt, responseSchema, label = "Gemini call", describeResult }) {
+  const startTime = Date.now();
+  let content;
 
   try {
-    return JSON.parse(response.text);
-  } catch {
-    throw new Error("Gemini returned a response that could not be parsed as JSON");
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    });
+
+    try {
+      content = JSON.parse(response.text);
+      return content;
+    } catch {
+      throw new Error("Gemini returned a response that could not be parsed as JSON");
+    }
+  } finally {
+    writeDebugLog({
+      tag: "LLM",
+      label,
+      model,
+      durationSeconds: Number(((Date.now() - startTime) / 1000).toFixed(2)),
+      ...(content && describeResult ? describeResult(content) : {}),
+    });
   }
 }
 

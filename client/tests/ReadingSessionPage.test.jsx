@@ -299,6 +299,39 @@ describe('ReadingSessionPage', () => {
     )
   })
 
+  it('submits the answer when Enter is pressed in the answer field', async () => {
+    await renderWithExerciseLoaded(mockExercise)
+
+    fireEvent.change(getAnswerField(), { target: { value: 'עלה ירוק' } })
+    fireEvent.keyDown(getAnswerField(), { key: 'Enter' })
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/reading-sessions/answers',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ sessionId: 'test-session-1', answerText: 'עלה ירוק' }),
+      }),
+    )
+  })
+
+  it('does not submit on Enter while already checking', async () => {
+    let resolveAnswerCheck
+    await renderWithExerciseLoaded(
+      mockExercise,
+      () => new Promise((resolve) => { resolveAnswerCheck = resolve }),
+    )
+
+    fireEvent.click(getSubmitButton())
+    fireEvent.keyDown(getAnswerField(), { key: 'Enter' })
+
+    const answerSubmissionCalls = globalThis.fetch.mock.calls.filter(
+      (call) => call[0] === '/api/reading-sessions/answers',
+    )
+    expect(answerSubmissionCalls).toHaveLength(1)
+
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+  })
+
   it('submits a blank or whitespace-only answer unchanged', async () => {
     await renderWithExerciseLoaded(mockExercise)
 
@@ -314,10 +347,10 @@ describe('ReadingSessionPage', () => {
   })
 
   it('disables the input and button while checking', async () => {
-    let resolveAnswers
+    let resolveAnswerCheck
     await renderWithExerciseLoaded(
       mockExercise,
-      () => new Promise((resolve) => { resolveAnswers = resolve }),
+      () => new Promise((resolve) => { resolveAnswerCheck = resolve }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -328,14 +361,14 @@ describe('ReadingSessionPage', () => {
     expect(checkingButton).toBeDisabled()
     expect(getAnswerField()).toBeDisabled()
 
-    resolveAnswers(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
   })
 
   it('does not call the service again on a second submit while checking', async () => {
-    let resolveAnswers
+    let resolveAnswerCheck
     await renderWithExerciseLoaded(
       mockExercise,
-      () => new Promise((resolve) => { resolveAnswers = resolve }),
+      () => new Promise((resolve) => { resolveAnswerCheck = resolve }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -343,12 +376,12 @@ describe('ReadingSessionPage', () => {
       screen.getByRole('button', { name: resolveText('readingSession.checkingLabel') }),
     )
 
-    const answerCalls = globalThis.fetch.mock.calls.filter(
+    const answerSubmissionCalls = globalThis.fetch.mock.calls.filter(
       (call) => call[0] === '/api/reading-sessions/answers',
     )
-    expect(answerCalls).toHaveLength(1)
+    expect(answerSubmissionCalls).toHaveLength(1)
 
-    resolveAnswers(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
   })
 
   it('displays the resolved correct-feedback text on a correct result', async () => {
@@ -434,10 +467,10 @@ describe('ReadingSessionPage', () => {
       screen.queryByRole('button', { name: resolveText('readingSession.checkingLabel') }),
     ).not.toBeInTheDocument()
 
-    const answerCalls = globalThis.fetch.mock.calls.filter(
+    const answerSubmissionCalls = globalThis.fetch.mock.calls.filter(
       (call) => call[0] === '/api/reading-sessions/answers',
     )
-    expect(answerCalls).toHaveLength(1)
+    expect(answerSubmissionCalls).toHaveLength(1)
 
     const nextQuestionCalls = globalThis.fetch.mock.calls.filter(
       (call) => call[0] === '/api/reading-sessions/next-question',
@@ -506,10 +539,10 @@ describe('ReadingSessionPage', () => {
   })
 
   it('uses a synchronous guard so a second submission cannot slip through even if the button is re-enabled mid-flight', async () => {
-    let resolveAnswers
+    let resolveAnswerCheck
     await renderWithExerciseLoaded(
       mockExercise,
-      () => new Promise((resolve) => { resolveAnswers = resolve }),
+      () => new Promise((resolve) => { resolveAnswerCheck = resolve }),
     )
 
     const submitButton = getSubmitButton()
@@ -522,12 +555,12 @@ describe('ReadingSessionPage', () => {
 
     fireEvent.click(submitButton)
 
-    const answerCalls = globalThis.fetch.mock.calls.filter(
+    const answerSubmissionCalls = globalThis.fetch.mock.calls.filter(
       (call) => call[0] === '/api/reading-sessions/answers',
     )
-    expect(answerCalls).toHaveLength(1)
+    expect(answerSubmissionCalls).toHaveLength(1)
 
-    resolveAnswers(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
   })
 
   it('renders the localized fallback instead of an empty question section when question is null', async () => {

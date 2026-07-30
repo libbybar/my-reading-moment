@@ -12,9 +12,41 @@ import Button from '../components/ui/Button'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
 import PageShell from '../components/ui/PageShell'
 import Card from '../components/ui/Card'
-import { ChildHomeHeader, ChildHomeGreeting, StationPath, SwitchChildAction } from '../styles/ChildHomePageStyle'
+import {
+  ChildHomeHeader,
+  ChildHomeGreeting,
+  StationPath,
+  StationRow,
+  StationRowConnector,
+  StationWobble,
+  SwitchChildAction,
+} from '../styles/ChildHomePageStyle'
 
-const TOTAL_STATIONS = 3
+// Demo-only: 12 stations, source of truth for this step.
+const TOTAL_STATIONS = 12
+
+// How many stations fit per row of the winding path at the card's widest
+// (480px card, 32px padding each side). See StationNodeStyle.js for the
+// station wrapper width this was sized against — the two must move together.
+const STATIONS_PER_ROW = 3
+
+// Small repeating vertical offset (px) so stations don't sit in a perfectly
+// even grid — purely visual, breaks up the "spreadsheet" look.
+const STATION_WOBBLE_PATTERN_PX = [0, -6, 6]
+
+function getStationWobble(stepNumber) {
+  return STATION_WOBBLE_PATTERN_PX[(stepNumber - 1) % STATION_WOBBLE_PATTERN_PX.length]
+}
+
+function chunkIntoRows(items, itemsPerRow) {
+  const rows = []
+
+  for (let index = 0; index < items.length; index += itemsPerRow) {
+    rows.push(items.slice(index, index + itemsPerRow))
+  }
+
+  return rows
+}
 
 function ChildHomePage() {
   const { activeChildId } = useActiveChild()
@@ -104,6 +136,13 @@ function ChildHomePage() {
     return { stepNumber, status }
   })
 
+  // Winding/serpentine layout: rows stack vertically, but every other row's
+  // stations render in reversed order, so the path zigzags instead of
+  // running straight down.
+  const stationRows = chunkIntoRows(stations, STATIONS_PER_ROW).map((row, rowIndex) =>
+    rowIndex % 2 === 1 ? [...row].reverse() : row,
+  )
+
   return (
     <PageShell>
       <Card>
@@ -115,16 +154,24 @@ function ChildHomePage() {
         </ChildHomeHeader>
 
         <StationPath>
-          {stations.map((station) => (
-            <StationNode
-              key={station.stepNumber}
-              status={station.status}
-              stepNumber={station.stepNumber}
-              accessibleLabel={
-                station.status === 'active' ? TEXT.childHome.activeStationAccessibleLabel : undefined
-              }
-              onClick={station.status === 'active' ? () => navigate('/') : undefined}
-            />
+          {stationRows.map((row, rowIndex) => (
+            <StationRow key={rowIndex}>
+              {row.map((station) => (
+                <StationWobble key={station.stepNumber} $offset={getStationWobble(station.stepNumber)}>
+                  <StationNode
+                    status={station.status}
+                    stepNumber={station.stepNumber}
+                    accessibleLabel={
+                      station.status === 'active' ? TEXT.childHome.activeStationAccessibleLabel : undefined
+                    }
+                    onClick={station.status === 'active' ? () => navigate('/') : undefined}
+                  />
+                </StationWobble>
+              ))}
+              {rowIndex < stationRows.length - 1 && (
+                <StationRowConnector $side={rowIndex % 2 === 0 ? 'left' : 'right'} />
+              )}
+            </StationRow>
           ))}
         </StationPath>
 

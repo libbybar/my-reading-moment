@@ -36,7 +36,12 @@ The project currently includes:
 - Client and server linting
 - GitHub Actions CI checks
 
-The reading exercise content is currently based on mock data. Dynamic exercise generation and persistent child profiles will be added in later stages.
+Reading passages and comprehension questions are generated through a pluggable LLM provider, selected via configuration:
+
+- `mock` (default) — deterministic, no external calls; used for local development and by every automated test
+- `gemini` — real generation via the Google Gemini API, enabled locally with environment variables (see "LLM Provider Configuration" below)
+
+Persistent child profiles and a database are not yet part of the project.
 
 ## Project Structure
 
@@ -93,6 +98,19 @@ The server runs locally on:
 ```text
 http://localhost:7000
 ```
+
+## LLM Provider Configuration
+
+Reading content generation is configured through `server/.env` (created above from `.env.example`):
+
+- `LLM_PROVIDER` — `mock` (default, no external calls) or `gemini` (real generation via the Google Gemini API)
+- `GEMINI_API_KEY` — required only when `LLM_PROVIDER=gemini`; set it locally in `server/.env` and never commit it
+- `GEMINI_MODEL` — optional; defaults to a current Gemini model if unset
+- `TIMING_LOG_ENABLED` — optional; set to `true` to write local JSON Lines debug/timing logs to `server/logs/`
+
+`server/.env` and `server/logs/` are both git-ignored.
+
+Automated tests never call the real Gemini API — they run against the mock provider, or against a stubbed Gemini client.
 
 ## Run Server Tests
 
