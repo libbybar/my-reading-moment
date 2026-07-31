@@ -1,6 +1,6 @@
-const mockProvider = require("../src/services/llmProvider/mockProvider");
-const mockPassages = require("../src/data/mockPassages");
-const { runLlmProviderContractTests } = require("./support/llmProviderContract");
+import mockProvider from "../src/services/llmProvider/mockProvider.js";
+import mockPassages from "../src/data/mockPassages.js";
+import { runLlmProviderContractTests } from "./support/llmProviderContract.js";
 
 const [seedPassage] = mockPassages;
 const passageFixture = {

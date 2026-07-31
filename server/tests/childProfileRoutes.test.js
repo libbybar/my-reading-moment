@@ -1,51 +1,93 @@
-const request = require("supertest");
-const app = require("../src/app");
-const mockChildProfiles = require("../src/data/mockChildProfiles");
+import request from "supertest";
+import app from "../src/app.js";
+import * as testDb from "./support/testDb.js";
+import Parent from "../src/models/Parent.js";
 
 describe("GET /api/child-profiles", () => {
-  test("returns all available child profiles, not only the first one", async () => {
+  beforeAll(async () => {
+    await testDb.connect();
+  });
+
+  afterEach(async () => {
+    await testDb.clearDatabase();
+  });
+
+  afterAll(async () => {
+    await testDb.disconnect();
+  });
+
+  test("returns an empty list when no parent exists", async () => {
     const response = await request(app).get("/api/child-profiles");
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.childProfiles).toHaveLength(mockChildProfiles.length);
-    expect(mockChildProfiles.length).toBeGreaterThan(1);
+    expect(response.body).toEqual({ childProfiles: [] });
   });
 
-  test("includes the existing child profile", async () => {
-    const response = await request(app).get("/api/child-profiles");
+  describe("when a parent with children exists", () => {
+    let parent;
 
-    const gaya = response.body.childProfiles.find(
-      (profile) => profile.id === "mock-child-profile-gaya",
-    );
-
-    expect(gaya).toMatchObject({
-      id: "mock-child-profile-gaya",
-      name: "גאיה",
-      grammaticalGender: "female",
-      readingLevel: "beginner",
+    beforeEach(async () => {
+      parent = await Parent.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+          {
+            name: "עומר",
+            grammaticalGender: "male",
+            learningProfile: { readingLevel: "intermediate", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
     });
-  });
 
-  test("includes the newly added Omer profile with his correct data", async () => {
-    const response = await request(app).get("/api/child-profiles");
+    test("returns all available child profiles, not only the first one", async () => {
+      const response = await request(app).get("/api/child-profiles");
 
-    const omer = response.body.childProfiles.find(
-      (profile) => profile.id === "mock-child-profile-omer",
-    );
-
-    expect(omer).toMatchObject({
-      id: "mock-child-profile-omer",
-      name: "עומר",
-      grammaticalGender: "male",
-      readingLevel: "intermediate",
+      expect(response.statusCode).toBe(200);
+      expect(response.body.childProfiles).toHaveLength(2);
     });
-  });
 
-  test("returns unique profile ids", async () => {
-    const response = await request(app).get("/api/child-profiles");
+    test("includes the existing child profile", async () => {
+      const response = await request(app).get("/api/child-profiles");
 
-    const ids = response.body.childProfiles.map((profile) => profile.id);
+      const [gayaChild] = parent.children;
+      const gaya = response.body.childProfiles.find(
+        (profile) => profile.id === gayaChild._id.toString(),
+      );
 
-    expect(new Set(ids).size).toBe(ids.length);
+      expect(gaya).toMatchObject({
+        name: "גאיה",
+        grammaticalGender: "female",
+        readingLevel: "beginner",
+      });
+    });
+
+    test("includes the newly added Omer profile with his correct data", async () => {
+      const response = await request(app).get("/api/child-profiles");
+
+      const [, omerChild] = parent.children;
+      const omer = response.body.childProfiles.find(
+        (profile) => profile.id === omerChild._id.toString(),
+      );
+
+      expect(omer).toMatchObject({
+        name: "עומר",
+        grammaticalGender: "male",
+        readingLevel: "intermediate",
+      });
+    });
+
+    test("returns unique profile ids", async () => {
+      const response = await request(app).get("/api/child-profiles");
+
+      const ids = response.body.childProfiles.map((profile) => profile.id);
+
+      expect(new Set(ids).size).toBe(ids.length);
+    });
   });
 });

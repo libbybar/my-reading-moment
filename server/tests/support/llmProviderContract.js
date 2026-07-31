@@ -221,4 +221,4 @@ function runLlmProviderContractTests(provider, { passage, readingLevel }) {
   });
 }
 
-module.exports = { runLlmProviderContractTests };
+export { runLlmProviderContractTests };

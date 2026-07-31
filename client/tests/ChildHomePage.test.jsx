@@ -39,11 +39,7 @@ function renderChildHomePage({
   initialActiveChildId = ACTIVE_PROFILE.id,
   initialProgressByChildId = {},
 } = {}) {
-  // Matches main.jsx exactly: StrictMode double-invokes effects in
-  // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't. `initialActiveChildId`/`initialProgressByChildId`
-  // seed ActiveChildProvider/LearningPathProvider deterministically, the
-  // same way MemoryRouter's initialEntries do.
+  // StrictMode keeps stale-effect behavior aligned with the real app.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
@@ -109,7 +105,6 @@ describe('ChildHomePage', () => {
     await screen.findByText(ACTIVE_PROFILE.name)
 
     expect(screen.getAllByRole('button', { name: ACTIVE_STATION_ACCESSIBLE_NAME })).toHaveLength(1)
-    // 12 total demo stations, 1 active -> 11 non-interactive (completed/locked) groups.
     expect(screen.getAllByRole('group')).toHaveLength(11)
   })
 
@@ -159,9 +154,6 @@ describe('ChildHomePage', () => {
       }),
     ).toBeInTheDocument()
 
-    // getByRole above already proves exactly one station carries the active
-    // accessible name; this confirms the rest are the non-interactive
-    // completed/locked stations, not some leftover extra state.
     expect(screen.getAllByRole('group')).toHaveLength(11)
   })
 
@@ -230,13 +222,10 @@ describe('ChildHomePage', () => {
 
     renderChildHomePage()
 
-    // The current (second) effect instance resolves first...
     resolveCurrent({ childProfiles: [ACTIVE_PROFILE] })
     await screen.findByText(ACTIVE_PROFILE.name)
 
-    // ...then the stale (first, already-cleaned-up) effect instance resolves
-    // afterwards. Its `ignore` flag was set to true by its own cleanup, so
-    // this must be a no-op rather than clobbering the current profile.
+    // The cleaned-up first effect must not clobber the current profile.
     resolveStale({ childProfiles: [OTHER_PROFILE] })
     await Promise.resolve()
     await Promise.resolve()

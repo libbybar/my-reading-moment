@@ -22,16 +22,10 @@ import {
   SwitchChildAction,
 } from '../styles/ChildHomePageStyle'
 
-// Demo-only: 12 stations, source of truth for this step.
 const TOTAL_STATIONS = 12
 
-// How many stations fit per row of the winding path at the card's widest
-// (480px card, 32px padding each side). See StationNodeStyle.js for the
-// station wrapper width this was sized against — the two must move together.
 const STATIONS_PER_ROW = 3
 
-// Small repeating vertical offset (px) so stations don't sit in a perfectly
-// even grid — purely visual, breaks up the "spreadsheet" look.
 const STATION_WOBBLE_PATTERN_PX = [0, -6, 6]
 
 function getStationWobble(stepNumber) {
@@ -61,9 +55,7 @@ function ChildHomePage() {
       return undefined
     }
 
-    // React's StrictMode (enabled in main.jsx) intentionally mounts every
-    // component twice in development, firing this effect twice back-to-back.
-    // `ignore` is the standard pattern for a fetch-in-effect.
+    // StrictMode can resolve a stale fetch after the cleanup has run.
     let ignore = false
 
     fetchChildProfiles()
@@ -136,9 +128,6 @@ function ChildHomePage() {
     return { stepNumber, status }
   })
 
-  // Winding/serpentine layout: rows stack vertically, but every other row's
-  // stations render in reversed order, so the path zigzags instead of
-  // running straight down.
   const stationRows = chunkIntoRows(stations, STATIONS_PER_ROW).map((row, rowIndex) =>
     rowIndex % 2 === 1 ? [...row].reverse() : row,
   )

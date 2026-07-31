@@ -1,11 +1,4 @@
-// Guidance keyed by the app's existing readingLevel values. Only prompts.js
-// needs to know what these levels actually mean in practice — the provider
-// contract itself stays generic (any non-blank string), so this is the one
-// place that turns "beginner"/"intermediate"/"advanced" into real behavior.
-
-// Shared across all levels: what makes the generated text an actual short
-// story, not a random string. Level-specific guidance below layers on top of
-// this — it only varies vocabulary/length/nikud, not the story shape.
+// Reading-level meaning belongs in prompt construction, not the provider contract.
 const PASSAGE_STORY_GUIDANCE = [
   "בקטע צריכה להיות דמות ראשית ילדית אחת, ידידותית ומתאימה לגיל.",
   "בני את הקטע כסיפור עם התחלה, אמצע וסוף פשוטים.",
@@ -31,11 +24,6 @@ const READING_LEVEL_PASSAGE_GUIDANCE = {
   ].join(" "),
 };
 
-// Shared across all levels: what makes a question fair to grade — answerable
-// from the text alone, and an expectedMeaning that describes the answer's
-// meaning rather than one fixed wording (the mock's evaluator is a substring
-// match, but Gemini's evaluateAnswer judges semantically — a meaning
-// description is what that comparison actually needs).
 const QUESTION_GENERAL_GUIDANCE = [
   "השאלה חייבת להיות כזו שאפשר לענות עליה באופן מפורש מתוך הקטע בלבד, בלי צורך בידע חיצוני ובלי ניחוש.",
   "התשובה הצפויה (expectedMeaning) צריכה לתאר את משמעות התשובה הנכונה, ולא רק לחזור מילה במילה על ניסוח יחיד מתוך הטקסט.",
@@ -65,9 +53,7 @@ function getReadingLevelGuidance(guidanceByLevel, readingLevel) {
   return guidance;
 }
 
-// At most one interest, and only as a natural option — not a bald list
-// appended to the prompt, which risked the story just listing interests as
-// a sentence instead of using one to inspire the plot.
+// Prevents the model from turning interests into a list instead of a plot.
 function buildInterestsLine(interests) {
   if (interests.length === 0) {
     return "";
@@ -108,4 +94,4 @@ function buildEvaluationPrompt({ question, answerText }) {
   ].join("\n");
 }
 
-module.exports = { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt };
+export { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt };

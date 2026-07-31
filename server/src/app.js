@@ -1,10 +1,11 @@
-const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
 
-const healthRoutes = require("./routes/healthRoutes");
-const readingSessionRoutes = require("./routes/readingSessionRoutes");
-const childProfileRoutes = require("./routes/childProfileRoutes");
+import healthRoutes from "./routes/healthRoutes.js";
+import readingSessionRoutes from "./routes/readingSessionRoutes.js";
+import childProfileRoutes from "./routes/childProfileRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use("/api/health", healthRoutes);
 app.use("/api/reading-sessions", readingSessionRoutes);
 app.use("/api/child-profiles", childProfileRoutes);
+app.use("/api/auth", authRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -22,4 +24,4 @@ app.use((req, res) => {
   });
 });
 
-module.exports = app;
+export default app;

@@ -1,9 +1,17 @@
-jest.mock("../src/services/llmProvider");
+import { jest } from "@jest/globals";
+import request from "supertest";
 
-const request = require("supertest");
-const app = require("../src/app");
-const llmProvider = require("../src/services/llmProvider");
-const mockChildProfiles = require("../src/data/mockChildProfiles");
+const llmProvider = {
+  generatePassage: jest.fn(),
+  generateQuestion: jest.fn(),
+};
+
+jest.unstable_mockModule("../src/services/llmProvider/index.js", () => ({
+  default: llmProvider,
+}));
+
+const { default: app } = await import("../src/app.js");
+const { default: mockChildProfiles } = await import("../src/data/mockChildProfiles.js");
 
 const validPassage = {
   id: "stub-passage",

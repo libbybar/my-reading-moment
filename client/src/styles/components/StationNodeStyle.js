@@ -7,8 +7,6 @@ const StationCircle = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Bottom-offset shadow gives the circle a puffy, physical "game piece"
-     feel instead of a flat disc. */
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
 
   @media (max-width: 480px) {
@@ -32,9 +30,7 @@ export const CompletedStationCircle = styled(StationCircle)`
   color: ${(props) => props.theme.colors.surface};
 `
 
-// position: relative + z-index give each station its own stacking context,
-// so it reliably paints above ChildHomePageStyle.js's StationRow path line
-// and StationRowConnector (both z-index: 0) instead of being covered by them.
+// Stations must paint above the path line and row connectors.
 export const ActiveStationButton = styled.button`
   position: relative;
   z-index: 1;

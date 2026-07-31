@@ -34,11 +34,6 @@ export const StationRow = styled.div`
   width: fit-content;
   margin-bottom: 20px;
 
-  /* The path line, behind the stations — see StationNodeStyle.js, where the
-     station wrappers get position: relative + a higher z-index so they
-     paint on top of this instead of being covered by it. Dotted, not solid:
-     a solid ruler-straight bar read as "calculator", not a playful trail —
-     dots also forgive the per-station wobble below not lining up exactly. */
   &::before {
     content: '';
     position: absolute;
@@ -52,11 +47,7 @@ export const StationRow = styled.div`
   }
 `
 
-// Bridges the gap between one row and the next, on whichever edge the path
-// actually continues from (see ChildHomePage.jsx for how $side is chosen).
-// The left/right offset must match half of the station wrapper's width in
-// StationNodeStyle.js, so it lines up under that row-edge station's center —
-// the two files are coupled on purpose, not accidentally.
+// Offsets must match half the station wrapper width.
 export const StationRowConnector = styled.div`
   position: absolute;
   bottom: -20px;
@@ -71,9 +62,6 @@ export const StationRowConnector = styled.div`
   }
 `
 
-// Small, per-station vertical offset so stations don't sit in a perfectly
-// even grid — purely visual (transform doesn't affect layout or click
-// targets), see ChildHomePage.jsx's getStationWobble for the pattern.
 export const StationWobble = styled.div`
   transform: translateY(${(props) => props.$offset ?? 0}px);
 `

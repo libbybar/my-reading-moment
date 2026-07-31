@@ -1,15 +1,15 @@
-const crypto = require("crypto");
-const express = require("express");
+import crypto from "crypto";
+import express from "express";
 
-const mockChildProfiles = require("../data/mockChildProfiles");
-const llmProvider = require("../services/llmProvider");
-const readingSessionStore = require("../services/readingSessionStore");
-const { writeDebugLog, runWithRequestId } = require("../services/debugLogger");
-const {
+import mockChildProfiles from "../data/mockChildProfiles.js";
+import llmProvider from "../services/llmProvider/index.js";
+import readingSessionStore from "../services/readingSessionStore.js";
+import { writeDebugLog, runWithRequestId } from "../services/debugLogger.js";
+import {
   isValidEvaluationResult,
   isValidGeneratedQuestion,
   isValidGeneratedPassage,
-} = require("../services/providerContractValidation");
+} from "../services/providerContractValidation.js";
 
 const router = express.Router();
 
@@ -42,10 +42,6 @@ function toPassageSnapshot(passage) {
   };
 }
 
-// Debug-only: the client only ever sees a stable, generic failure message
-// (per PREVIEW_FAILURE_MESSAGE etc. below) — this is the one place the real
-// error (message/name, plus Gemini's own `status` when present) gets
-// recorded at all, since every route's catch previously discarded it.
 function logError(label, error) {
   writeDebugLog({
     tag: "Error",
@@ -59,10 +55,6 @@ function logError(label, error) {
 const PREVIEW_FAILURE_MESSAGE = "Failed to generate a reading question";
 
 router.post("/preview", async (req, res) => {
-  // Everything below runs inside runWithRequestId, so every writeDebugLog
-  // call made during this request — including deep inside geminiClient.js —
-  // automatically picks up the same requestId, with no need to pass it
-  // through generatePassage/generateQuestion's own parameters.
   const requestId = crypto.randomUUID().slice(0, 8);
 
   return runWithRequestId(requestId, async () => {
@@ -86,9 +78,7 @@ router.post("/preview", async (req, res) => {
     }
 
     if (!isValidGrammaticalGender(child.grammaticalGender)) {
-      // Internal data-contract failure: the child profile itself is malformed.
-      // Never expose which field is invalid or what value it held — respond
-      // with the same stable error shape as any other /preview failure.
+      // Internal profile data must not leak through the public error shape.
       return res.status(500).json({
         error: PREVIEW_FAILURE_MESSAGE,
       });
@@ -138,12 +128,7 @@ router.post("/preview", async (req, res) => {
       res.status(200).json({
         title: passage.title,
         story: passage.text,
-        // Legacy/transitional: `questions` mirrors the canonical `question` below
-        // (as a single-item prompt list, or empty once exhausted) rather than the
-        // passage's own seeded list — the two are not equivalent sources of truth,
-        // since a future real provider may generate a question that isn't in the
-        // passage's seeded list. No new code should read `questions`; remove it
-        // once the client is migrated to `question`.
+        // Legacy compatibility: new code should read `question`, not `questions`.
         questions: legacyQuestions,
         passageId: passage.id,
         sessionId,
@@ -262,11 +247,7 @@ router.post("/next-question", async (req, res) => {
       }
 
       if (result.status === "exhausted") {
-        // Temporary mock fallback, not a product-level state: the current mock
-        // provider has a finite seeded question list per passage, so it can run
-        // out. A real LLM provider would keep generating. Session completion will
-        // be defined separately, based on a question/attempt limit rather than
-        // provider exhaustion.
+        // Mock-only fallback: real providers should not use exhaustion as session completion.
         return res.status(200).json({ question: null });
       }
 
@@ -286,4 +267,4 @@ router.post("/next-question", async (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

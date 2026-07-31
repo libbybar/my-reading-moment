@@ -1,4 +1,4 @@
-const mockPassages = require("../src/data/mockPassages");
+import mockPassages from "../src/data/mockPassages.js";
 
 describe("mockPassages", () => {
   test("contains at least one passage", () => {

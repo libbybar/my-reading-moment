@@ -63,4 +63,4 @@ function isValidGeneratedPassage(passage, expectedReadingLevel) {
   return passage.readingLevel === expectedReadingLevel;
 }
 
-module.exports = { isValidEvaluationResult, isValidGeneratedQuestion, isValidGeneratedPassage };
+export { isValidEvaluationResult, isValidGeneratedQuestion, isValidGeneratedPassage };

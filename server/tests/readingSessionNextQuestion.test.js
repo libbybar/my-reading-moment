@@ -1,6 +1,6 @@
-const request = require("supertest");
-const app = require("../src/app");
-const readingSessionStore = require("../src/services/readingSessionStore");
+import request from "supertest";
+import app from "../src/app.js";
+import readingSessionStore from "../src/services/readingSessionStore.js";
 
 async function createSessionId() {
   const previewResponse = await request(app)

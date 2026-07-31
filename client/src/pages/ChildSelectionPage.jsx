@@ -23,9 +23,7 @@ function ChildSelectionPage() {
   }
 
   useEffect(() => {
-    // React's StrictMode (enabled in main.jsx) intentionally mounts every
-    // component twice in development, firing this effect twice back-to-back.
-    // `ignore` is the standard pattern for a fetch-in-effect.
+    // StrictMode can resolve a stale fetch after the cleanup has run.
     let ignore = false
 
     fetchChildProfiles()

@@ -1,12 +1,19 @@
+import geminiProvider from "./geminiProvider.js";
+import mockProvider from "./mockProvider.js";
+
 const SUPPORTED_PROVIDERS = ["mock", "gemini"];
 
 function loadProvider(providerName) {
   if (providerName === "mock") {
-    return require("./mockProvider");
+    return mockProvider;
   }
 
   if (providerName === "gemini") {
-    return require("./geminiProvider");
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.trim().length === 0) {
+      throw new Error("GEMINI_API_KEY is required when LLM_PROVIDER=gemini");
+    }
+
+    return geminiProvider;
   }
 
   throw new Error(
@@ -14,9 +21,8 @@ function loadProvider(providerName) {
   );
 }
 
-// Resolved once, at require-time, from the environment. Re-exports the
-// active provider's own exports object (not a copy), so callers that
-// require("../services/llmProvider") never know or care which provider is
-// active, and jest.spyOn(llmProvider, ...) in existing tests keeps working —
-// it mutates the same object routes read from.
-module.exports = loadProvider(process.env.LLM_PROVIDER || "mock");
+const llmProvider = loadProvider(process.env.LLM_PROVIDER || "mock");
+
+export { loadProvider };
+
+export default llmProvider;

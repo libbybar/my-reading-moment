@@ -67,4 +67,4 @@ const mockPassages = [
 },
 ];
 
-module.exports = mockPassages;
+export default mockPassages;

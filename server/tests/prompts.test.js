@@ -1,8 +1,8 @@
-const {
+import {
   buildPassagePrompt,
   buildQuestionPrompt,
   buildEvaluationPrompt,
-} = require("../src/services/llmProvider/prompts");
+} from "../src/services/llmProvider/prompts.js";
 
 describe("buildPassagePrompt", () => {
   test("beginner guidance asks for full nikud and very simple vocabulary", () => {
