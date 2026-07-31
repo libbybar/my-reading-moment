@@ -1,19 +1,43 @@
 import request from "supertest";
 import app from "../src/app.js";
+import mockPassages from "../src/data/mockPassages.js";
 import readingSessionStore from "../src/services/readingSessionStore.js";
+import * as testDb from "./support/testDb.js";
+import { createAuthenticatedParentWithChild } from "./support/testAuth.js";
+
+const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
 async function createSessionId() {
+  const [passage] = mockPassages;
+  const { childId, cookie } = await createAuthenticatedParentWithChild({
+    name: "Test Child",
+    grammaticalGender: "female",
+    learningProfile: { readingLevel: passage.readingLevel, interests: [] },
+  });
+
   const previewResponse = await request(app)
     .post("/api/reading-sessions/preview")
-    .send({ childId: "mock-child-profile-gaya" });
+    .set("Cookie", [cookie])
+    .send({ childId });
 
   return previewResponse.body.sessionId;
 }
 
 describe("POST /api/reading-sessions/answers", () => {
-  afterEach(() => {
+  beforeAll(async () => {
+    process.env.JWT_SECRET = "test-secret";
+    await testDb.connect();
+  }, 20000);
+
+  afterEach(async () => {
     readingSessionStore.clearSessions();
+    await testDb.clearDatabase();
   });
+
+  afterAll(async () => {
+    process.env.JWT_SECRET = ORIGINAL_JWT_SECRET;
+    await testDb.disconnect();
+  }, 20000);
 
   test("returns the evaluation result for a valid answer", async () => {
     const sessionId = await createSessionId();

@@ -1,6 +1,6 @@
 import styled from 'styled-components'
 
-export const StyledTextField = styled.input`
+export const StyledSelectField = styled.select`
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
   background: ${(props) => props.theme.colors.surface};
@@ -8,6 +8,7 @@ export const StyledTextField = styled.input`
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 16px;
+  cursor: pointer;
   transition: border-color 0.15s ease;
 
   &:focus {

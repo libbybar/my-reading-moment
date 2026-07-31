@@ -2,16 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
 import { render, screen, cleanup } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Routes, Route } from 'react-router'
 import ChildSelectionPage from '../src/pages/ChildSelectionPage'
 import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
 import { TEXT } from '../src/constants/text'
 import { theme } from '../src/styles/theme'
-import { fetchChildProfiles } from '../src/services/childProfileService'
+import { fetchChildProfiles, ChildProfileServiceError } from '../src/services/childProfileService'
 import { getChildAvatar } from '../src/constants/childAvatars'
 
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
+  ChildProfileServiceError: class ChildProfileServiceError extends Error {
+    constructor(message, { status, body } = {}) {
+      super(message)
+      this.name = 'ChildProfileServiceError'
+      this.status = status
+      this.body = body
+    }
+  },
 }))
 
 vi.mock('../src/constants/childAvatars', () => ({
@@ -31,7 +39,10 @@ function renderPage() {
       <ThemeProvider theme={theme}>
         <ActiveChildProvider>
           <MemoryRouter initialEntries={['/children']}>
-            <ChildSelectionPage />
+            <Routes>
+              <Route path="/children" element={<ChildSelectionPage />} />
+              <Route path="/login" element={<div>LOGIN_SENTINEL</div>} />
+            </Routes>
           </MemoryRouter>
         </ActiveChildProvider>
       </ThemeProvider>
@@ -91,7 +102,6 @@ describe('ChildSelectionPage', () => {
       expect(await screen.findByRole('button', { name: profile.name })).toBeInTheDocument()
     }
 
-    expect(screen.getAllByRole('button')).toHaveLength(GENERIC_PROFILES.length)
     expect(screen.getAllByTestId('avatar-sentinel')).toHaveLength(GENERIC_PROFILES.length)
     expect(screen.queryByText(TEXT.childSelection.loading)).not.toBeInTheDocument()
     expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
@@ -107,7 +117,6 @@ describe('ChildSelectionPage', () => {
     renderPage()
 
     expect(await screen.findByRole('button', { name: 'ילד יחיד' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
   it('shows only the localized empty-state message when no profiles are returned', async () => {
@@ -118,7 +127,32 @@ describe('ChildSelectionPage', () => {
     expect(await screen.findByText(TEXT.childSelection.emptyMessage)).toBeInTheDocument()
     expect(screen.queryByText(TEXT.childSelection.loading)).not.toBeInTheDocument()
     expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows an edit button for each profile and an add-child button, on top of the selection buttons', async () => {
+    fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
+
+    renderPage()
+
+    await screen.findByRole('button', { name: GENERIC_PROFILES[0].name })
+
+    expect(screen.getAllByRole('button', { name: TEXT.childSelection.editButtonLabel })).toHaveLength(
+      GENERIC_PROFILES.length,
+    )
+    expect(screen.getByRole('button', { name: TEXT.childSelection.addButtonLabel })).toBeInTheDocument()
+    // avatar + edit button per profile, plus the single "add child" button.
+    expect(screen.getAllByRole('button')).toHaveLength(GENERIC_PROFILES.length * 2 + 1)
+  })
+
+  it('shows the add-child button even when there are no existing profiles to edit', async () => {
+    fetchChildProfiles.mockResolvedValue({ childProfiles: [] })
+
+    renderPage()
+
+    expect(
+      await screen.findByRole('button', { name: TEXT.childSelection.addButtonLabel }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
   it('shows only the localized error state when the service call rejects with a service-level failure', async () => {
@@ -139,6 +173,17 @@ describe('ChildSelectionPage', () => {
     await screen.findByText(TEXT.childSelection.error)
 
     expectOnlyErrorVisible()
+  })
+
+  it('redirects to /login (not the generic error) when the profile fetch is unauthorized', async () => {
+    fetchChildProfiles.mockRejectedValue(
+      new ChildProfileServiceError('Request failed with status 401', { status: 401 }),
+    )
+
+    renderPage()
+
+    expect(await screen.findByText('LOGIN_SENTINEL')).toBeInTheDocument()
+    expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
   })
 
   it('ignores a stale StrictMode-duplicate request that resolves after the current one', async () => {

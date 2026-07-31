@@ -31,6 +31,57 @@ describe("parentRepository", () => {
     });
   });
 
+  describe("findByEmailWithPasswordHash", () => {
+    test("includes passwordHash, unlike findByEmail", async () => {
+      await parentRepository.create({ email: "parent@example.com", passwordHash: "hash" });
+
+      const withoutHash = await parentRepository.findByEmail("parent@example.com");
+      const withHash = await parentRepository.findByEmailWithPasswordHash("parent@example.com");
+
+      expect(withoutHash.passwordHash).toBeUndefined();
+      expect(withHash.passwordHash).toBe("hash");
+    });
+
+    test("returns null when no parent has the given email", async () => {
+      const found = await parentRepository.findByEmailWithPasswordHash("nobody@example.com");
+
+      expect(found).toBeNull();
+    });
+  });
+
+  describe("findById", () => {
+    test("returns the parent matching the given id", async () => {
+      const created = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+      });
+
+      const found = await parentRepository.findById(created._id);
+
+      expect(found.email).toBe("parent@example.com");
+    });
+
+    test("returns null for an id that doesn't exist", async () => {
+      const found = await parentRepository.findById("507f1f77bcf86cd799439011");
+
+      expect(found).toBeNull();
+    });
+  });
+
+  describe("recordLogin", () => {
+    test("sets lastLoginAt on the parent", async () => {
+      const created = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+      });
+      expect(created.lastLoginAt).toBeUndefined();
+
+      const updated = await parentRepository.recordLogin(created._id);
+
+      expect(updated.lastLoginAt).toBeInstanceOf(Date);
+    });
+  });
+
   describe("create", () => {
     test("persists a parent with a normalized (trimmed, lowercased) email", async () => {
       const parent = await parentRepository.create({

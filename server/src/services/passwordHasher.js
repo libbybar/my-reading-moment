@@ -7,4 +7,8 @@ async function hashPassword(plainTextPassword) {
   return bcrypt.hash(plainTextPassword, SALT_ROUNDS);
 }
 
-export { hashPassword };
+async function comparePassword(plainTextPassword, passwordHash) {
+  return bcrypt.compare(plainTextPassword, passwordHash);
+}
+
+export { hashPassword, comparePassword };

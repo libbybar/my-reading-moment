@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 
 import healthRoutes from "./routes/healthRoutes.js";
@@ -10,8 +11,17 @@ import authRoutes from "./routes/authRoutes.js";
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+// `credentials: true` + an explicit origin (not the default wildcard) are
+// both required for the browser to send/store the HttpOnly auth cookie —
+// credentialed requests are rejected outright against a wildcard origin.
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
+app.use(cookieParser());
 
 app.use("/api/health", healthRoutes);
 app.use("/api/reading-sessions", readingSessionRoutes);

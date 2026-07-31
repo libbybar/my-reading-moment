@@ -17,3 +17,27 @@ export const ProfileGrid = styled.div`
   justify-content: center;
   gap: 16px;
 `
+
+// Avatar + its edit button, stacked with real spacing instead of a bare div
+// (which had no gap at all — the edit button used to sit right under the name).
+export const ProfileCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+`
+
+export const ProfileForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+`
+
+export const FormActions = styled.div`
+  display: flex;
+  gap: 12px;
+`

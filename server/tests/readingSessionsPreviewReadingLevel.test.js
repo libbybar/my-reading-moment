@@ -7,86 +7,85 @@ import request from "supertest";
 
 jest.unstable_mockModule("../src/data/mockPassages.js", () => ({
   default: [
-  {
-    id: "fixture-passage-intermediate",
-    title: "Fixture Intermediate Passage",
-    text: "Intermediate fixture passage text.",
-    readingLevel: "intermediate",
-    readingGame: {
-      instruction: "Fixture intermediate reading game instruction.",
-    },
-    questions: [
-      {
-        id: "fixture-question-intermediate-1",
-        passageId: "fixture-passage-intermediate",
-        prompt: "Fixture intermediate prompt?",
-        expectedMeaning: "Fixture intermediate expected meaning.",
+    {
+      id: "fixture-passage-intermediate",
+      title: "Fixture Intermediate Passage",
+      text: "Intermediate fixture passage text.",
+      readingLevel: "intermediate",
+      readingGame: {
+        instruction: "Fixture intermediate reading game instruction.",
       },
-    ],
-  },
-  {
-    id: "fixture-passage-beginner",
-    title: "Fixture Beginner Passage",
-    text: "Beginner fixture passage text.",
-    readingLevel: "beginner",
-    readingGame: {
-      instruction: "Fixture beginner reading game instruction.",
+      questions: [
+        {
+          id: "fixture-question-intermediate-1",
+          passageId: "fixture-passage-intermediate",
+          prompt: "Fixture intermediate prompt?",
+          expectedMeaning: "Fixture intermediate expected meaning.",
+        },
+      ],
     },
-    questions: [
-      {
-        id: "fixture-question-beginner-1",
-        passageId: "fixture-passage-beginner",
-        prompt: "Fixture beginner prompt?",
-        expectedMeaning: "Fixture beginner expected meaning.",
+    {
+      id: "fixture-passage-beginner",
+      title: "Fixture Beginner Passage",
+      text: "Beginner fixture passage text.",
+      readingLevel: "beginner",
+      readingGame: {
+        instruction: "Fixture beginner reading game instruction.",
       },
-    ],
-  },
-],
-}));
-
-jest.unstable_mockModule("../src/data/mockChildProfiles.js", () => ({
-  default: [
-  {
-    id: "fixture-child-beginner",
-    name: "Fixture Beginner Child",
-    grammaticalGender: "female",
-    readingLevel: "beginner",
-    interests: [],
-  },
-  {
-    id: "fixture-child-intermediate",
-    name: "Fixture Intermediate Child",
-    grammaticalGender: "male",
-    readingLevel: "intermediate",
-    interests: [],
-  },
-  {
-    id: "fixture-child-no-match",
-    name: "Fixture No Match Child",
-    grammaticalGender: "female",
-    readingLevel: "advanced",
-    interests: [],
-  },
-],
+      questions: [
+        {
+          id: "fixture-question-beginner-1",
+          passageId: "fixture-passage-beginner",
+          prompt: "Fixture beginner prompt?",
+          expectedMeaning: "Fixture beginner expected meaning.",
+        },
+      ],
+    },
+  ],
 }));
 
 const { default: app } = await import("../src/app.js");
 const { default: mockPassages } = await import("../src/data/mockPassages.js");
 const { default: readingSessionStore } = await import("../src/services/readingSessionStore.js");
 const { default: llmProvider } = await import("../src/services/llmProvider/index.js");
+const testDb = await import("./support/testDb.js");
+const { createAuthenticatedParentWithChild } = await import("./support/testAuth.js");
+
+const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
 describe("POST /api/reading-sessions/preview (passage supply by reading level, via the provider)", () => {
-  afterEach(() => {
+  beforeAll(async () => {
+    process.env.JWT_SECRET = "test-secret";
+    await testDb.connect();
+  }, 20000);
+
+  afterEach(async () => {
     readingSessionStore.clearSessions();
     jest.restoreAllMocks();
+    await testDb.clearDatabase();
   });
+
+  afterAll(async () => {
+    process.env.JWT_SECRET = ORIGINAL_JWT_SECRET;
+    await testDb.disconnect();
+  }, 20000);
+
+  async function createChildWithLevel(readingLevel) {
+    return createAuthenticatedParentWithChild({
+      name: "Fixture Child",
+      grammaticalGender: "female",
+      learningProfile: { readingLevel, interests: [] },
+    });
+  }
 
   test("a beginner profile receives the beginner passage, even though it is not first in the array", async () => {
     const beginnerPassage = mockPassages.find((passage) => passage.readingLevel === "beginner");
+    const { childId, cookie } = await createChildWithLevel("beginner");
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "fixture-child-beginner" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(200);
     expect(response.body.passageId).toBe(beginnerPassage.id);
@@ -99,10 +98,12 @@ describe("POST /api/reading-sessions/preview (passage supply by reading level, v
     const intermediatePassage = mockPassages.find(
       (passage) => passage.readingLevel === "intermediate",
     );
+    const { childId, cookie } = await createChildWithLevel("intermediate");
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "fixture-child-intermediate" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(200);
     expect(response.body.passageId).toBe(intermediatePassage.id);
@@ -113,10 +114,12 @@ describe("POST /api/reading-sessions/preview (passage supply by reading level, v
 
   test("stores the selected passage and its generated question in the created session", async () => {
     const beginnerPassage = mockPassages.find((passage) => passage.readingLevel === "beginner");
+    const { childId, cookie } = await createChildWithLevel("beginner");
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "fixture-child-beginner" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     const storedSession = readingSessionStore.getSession(response.body.sessionId);
 
@@ -128,21 +131,26 @@ describe("POST /api/reading-sessions/preview (passage supply by reading level, v
   });
 
   test("returns the stable preview failure response when no passage matches the child's reading level", async () => {
+    const { childId, cookie } = await createChildWithLevel("advanced");
+
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "fixture-child-no-match" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(500);
     expect(response.body).toEqual({ error: "Failed to generate a reading question" });
   });
 
   test("does not call generateQuestion or createSession when no passage matches the child's reading level", async () => {
+    const { childId, cookie } = await createChildWithLevel("advanced");
     const generateQuestionSpy = jest.spyOn(llmProvider, "generateQuestion");
     const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
 
     await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "fixture-child-no-match" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(generateQuestionSpy).not.toHaveBeenCalled();
     expect(createSessionSpy).not.toHaveBeenCalled();

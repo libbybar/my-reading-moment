@@ -20,12 +20,17 @@ async function findByEmail(email) {
   return Parent.findOne({ email: normalizeEmail(email) });
 }
 
-// No authentication/session exists yet, so nothing can select "the"
-// authenticated parent. This is a deliberate stand-in for that lookup,
-// picking the first-created parent — not a real multi-tenant query. It
-// should be replaced once a real parent identity (session/token) exists.
-async function findFirst() {
-  return Parent.findOne({}).sort({ createdAt: 1 });
+// Separate from findByEmail on purpose: passwordHash is `select: false` on
+// the schema, so every other caller gets a parent without it by default.
+// Only login needs the hash, and naming this explicitly makes that need
+// visible at the call site instead of a generic method silently returning
+// sensitive data.
+async function findByEmailWithPasswordHash(email) {
+  return Parent.findOne({ email: normalizeEmail(email) }).select("+passwordHash");
+}
+
+async function findById(parentId) {
+  return Parent.findById(parentId);
 }
 
 async function create({ email, passwordHash, children = [] }) {
@@ -51,4 +56,49 @@ async function addChild(parentId, child) {
   );
 }
 
-export { findByEmail, findFirst, create, addChild, DuplicateEmailError };
+// Compound filter (_id + children._id) is what enforces ownership — a
+// parent can only ever update a child that's actually embedded in their own
+// document, even if they guess another child's real id.
+async function updateChild(parentId, childId, updates) {
+  const setFields = {};
+
+  if (updates.name !== undefined) {
+    setFields["children.$.name"] = updates.name;
+  }
+  if (updates.grammaticalGender !== undefined) {
+    setFields["children.$.grammaticalGender"] = updates.grammaticalGender;
+  }
+  if (updates.readingLevel !== undefined) {
+    setFields["children.$.learningProfile.readingLevel"] = updates.readingLevel;
+  }
+  if (updates.interests !== undefined) {
+    setFields["children.$.learningProfile.interests"] = updates.interests;
+  }
+
+  const parent = await Parent.findOneAndUpdate(
+    { _id: parentId, "children._id": childId },
+    { $set: setFields },
+    { returnDocument: "after", runValidators: true },
+  );
+
+  return parent ? parent.children.id(childId) : null;
+}
+
+async function recordLogin(parentId) {
+  return Parent.findByIdAndUpdate(
+    parentId,
+    { lastLoginAt: new Date() },
+    { returnDocument: "after" },
+  );
+}
+
+export {
+  findByEmail,
+  findByEmailWithPasswordHash,
+  findById,
+  create,
+  addChild,
+  updateChild,
+  recordLogin,
+  DuplicateEmailError,
+};
