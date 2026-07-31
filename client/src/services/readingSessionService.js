@@ -11,9 +11,7 @@ export class ReadingSessionServiceError extends Error {
 
 async function parseJsonResponse(response) {
   if (!response.ok) {
-    // Response body might not be valid JSON (or might have none) — keep the
-    // status/message stable rather than letting a body-parsing failure hide
-    // the real error.
+    // Preserve status details even when the error body is empty or invalid JSON.
     const body = await response.json().catch(() => null)
 
     throw new ReadingSessionServiceError(`Request failed with status ${response.status}`, {

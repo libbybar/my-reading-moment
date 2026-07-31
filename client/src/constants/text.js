@@ -60,11 +60,7 @@ export const LOCALIZED_TEXT = {
 
 export const DEFAULT_LANGUAGE = 'he'
 
-// Builds the transitional compatibility tree: neutral strings pass through
-// unchanged, but a gendered { female, male } entry is replaced with a getter
-// that throws on access. This guarantees the legacy `TEXT` alias can never
-// silently hand a gendered object to code that expects a plain string —
-// gendered messages are only reachable through `resolveText`.
+// Gendered messages must go through resolveText, never the legacy TEXT alias.
 function buildLegacyCompatibleTree(node, path) {
   const result = {}
 
@@ -96,10 +92,5 @@ function buildLegacyCompatibleTree(node, path) {
   return result
 }
 
-// Transitional compatibility alias: existing components still read `TEXT.readingSession...`
-// directly and assume every value is a plain string. Neutral strings keep working
-// unchanged; gendered entries throw instead of leaking a { female, male } object.
-// New gender-aware code must use `resolveText` instead of reading from `TEXT`
-// directly. Once existing consumers are migrated to `resolveText`, this alias
-// should be removed.
+// Transitional alias for neutral strings; remove after all consumers use resolveText.
 export const TEXT = buildLegacyCompatibleTree(LOCALIZED_TEXT[DEFAULT_LANGUAGE], '')

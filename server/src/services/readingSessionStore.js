@@ -1,11 +1,6 @@
-// In-memory reading-session store.
-//
-// This is a temporary, process-local store: it resets whenever the server
-// restarts, is not shared across multiple server instances, and has no
-// expiration policy for old sessions. Replacing it with a persistent, shared
-// store (e.g. a database or cache) is out of scope for this task.
+// Temporary process-local store: resets on server restart and is not shared across instances.
 
-const crypto = require("crypto");
+import crypto from "crypto";
 
 const sessions = new Map();
 
@@ -30,9 +25,6 @@ function getSession(sessionId) {
   return session ? structuredClone(session) : undefined;
 }
 
-// Focused mutation for the retry flow: replaces the session's current question
-// and records its id in askedQuestionIds, without allowing arbitrary session
-// patches. Returns undefined if the session doesn't exist.
 function replaceCurrentQuestion(sessionId, question) {
   const session = sessions.get(sessionId);
 
@@ -55,9 +47,10 @@ function replaceCurrentQuestion(sessionId, question) {
   return structuredClone(updatedSession);
 }
 
-// Test-only: clears all stored sessions so tests don't leak state into each other.
 function clearSessions() {
   sessions.clear();
 }
 
-module.exports = { createSession, getSession, replaceCurrentQuestion, clearSessions };
+export { createSession, getSession, replaceCurrentQuestion, clearSessions };
+
+export default { createSession, getSession, replaceCurrentQuestion, clearSessions };

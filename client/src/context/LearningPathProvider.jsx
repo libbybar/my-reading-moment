@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react'
 import { LearningPathContext } from './learningPathContext'
 
 export function LearningPathProvider({ children, initialProgressByChildId = {} }) {
-  // `initialProgressByChildId` seeds the very first render only, for tests —
-  // the same way ActiveChildProvider's `initialActiveChildId` does. It is
-  // not a controlled prop; `completeNextLearningPathStep` is still the only
-  // way to change progress after mount.
+  // Initial value only; this is not a controlled prop.
   const [progressByChildId, setProgressByChildId] = useState(initialProgressByChildId)
 
   const value = useMemo(

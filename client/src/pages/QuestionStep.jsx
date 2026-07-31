@@ -33,9 +33,6 @@ function QuestionStep({
   }
 
   if (status === 'attemptLimitReached') {
-    // Gentle, not punitive: an "info" tone (not "error"), and the only way
-    // forward is back to the path — no further retry loop on this screen.
-    // The child can start the same step over again from there.
     return (
       <AnswerPanel>
         <FeedbackMessage tone="info">{feedbackMessage}</FeedbackMessage>

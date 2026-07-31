@@ -16,4 +16,4 @@ const mockChildProfiles = [
 }
 ];
 
-module.exports = mockChildProfiles;
+export default mockChildProfiles;

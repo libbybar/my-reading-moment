@@ -8,11 +8,6 @@ import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
 import { fetchChildProfiles } from '../src/services/childProfileService'
 
-// This is the single authoritative test for the full learning-path game
-// loop: unlike AppChildSelectionFlow.test.jsx (which stops at reaching
-// /child-home), this one continues through practice, a correct answer, and
-// back home, asserting the station states actually flip from
-// active/locked to completed/active/locked.
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
 }))
@@ -86,7 +81,6 @@ describe('App learning-path flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: selectedProfile.name }))
 
-    // At /child-home, before any practice: step 1 active, steps 2 and 3 locked.
     const step1ActiveButton = await screen.findByRole('button', {
       name: stationAccessibleName(1, TEXT.childHome.activeStationAccessibleLabel),
     })
@@ -99,7 +93,6 @@ describe('App learning-path flow', () => {
 
     fireEvent.click(step1ActiveButton)
 
-    // At /: answer the practice question correctly.
     await screen.findByText(EXERCISE.question.prompt)
 
     fireEvent.click(
@@ -111,7 +104,6 @@ describe('App learning-path flow', () => {
       screen.getByRole('button', { name: resolveText('readingSession.returnToPathButtonLabel') }),
     )
 
-    // Back at /child-home: step 1 completed, step 2 now active, step 3 still locked.
     expect(
       await screen.findByRole('group', {
         name: stationAccessibleName(1, TEXT.childHome.completedStepStatusLabel),

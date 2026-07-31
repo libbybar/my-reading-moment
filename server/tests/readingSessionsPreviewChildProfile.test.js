@@ -1,4 +1,8 @@
-jest.mock("../src/data/mockChildProfiles", () => [
+import { jest } from "@jest/globals";
+import request from "supertest";
+
+jest.unstable_mockModule("../src/data/mockChildProfiles.js", () => ({
+  default: [
   {
     id: "test-child-male",
     name: "Test Male",
@@ -26,12 +30,12 @@ jest.mock("../src/data/mockChildProfiles", () => [
     readingLevel: "beginner",
     interests: [],
   },
-]);
+],
+}));
 
-const request = require("supertest");
-const app = require("../src/app");
-const readingSessionStore = require("../src/services/readingSessionStore");
-const llmProvider = require("../src/services/llmProvider");
+const { default: app } = await import("../src/app.js");
+const { default: readingSessionStore } = await import("../src/services/readingSessionStore.js");
+const { default: llmProvider } = await import("../src/services/llmProvider/index.js");
 
 describe("POST /api/reading-sessions/preview (child profile grammaticalGender)", () => {
   afterEach(() => {

@@ -1,20 +1,26 @@
-const { GoogleGenAI, Type } = require("@google/genai");
+import { GoogleGenAI, Type } from "@google/genai";
 
-const { writeDebugLog } = require("../debugLogger");
+import { writeDebugLog } from "../debugLogger.js";
 
-const apiKey = process.env.GEMINI_API_KEY;
+let ai;
+let activeApiKey;
 
-if (!apiKey || apiKey.trim().length === 0) {
-  throw new Error("GEMINI_API_KEY is required when LLM_PROVIDER=gemini");
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error("GEMINI_API_KEY is required when LLM_PROVIDER=gemini");
+  }
+
+  if (!ai || activeApiKey !== apiKey) {
+    ai = new GoogleGenAI({ apiKey });
+    activeApiKey = apiKey;
+  }
+
+  return ai;
 }
 
-const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
-const ai = new GoogleGenAI({ apiKey });
-
-// Response schemas live here, not in geminiProvider.js, so this remains the
-// only module that imports @google/genai — geminiProvider.js treats these as
-// opaque values, never touching the SDK's Type enum itself.
+// Keep SDK-specific schema values at the Gemini boundary.
 const PASSAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -41,29 +47,13 @@ const EVALUATION_RESPONSE_SCHEMA = {
   required: ["isCorrect"],
 };
 
-// Single entry point for talking to Gemini: sends `prompt` and asks for JSON
-// matching `responseSchema`, then parses the response text. Callers get back
-// a plain JS object, never the raw SDK response — this is the only module
-// that imports @google/genai, so swapping providers or SDKs later only
-// touches this file.
-//
-// `label` is optional and only used for the timing log below — it has no
-// effect on the request itself. The start time lives in a local variable per
-// call (not a shared/global registry), so overlapping calls never collide
-// with each other the way console.time/console.timeEnd's shared label
-// registry did.
-//
-// `describeResult` is also debug-only: an optional `(content) => {...}` that
-// gets to add extra fields (e.g. text length, reading level) to the log
-// entry. Kept out of this function itself since generateJson's result shape
-// is different for every caller (passage vs question vs evaluation) — only
-// geminiProvider.js actually knows what "length" means for each one.
 async function generateJson({ prompt, responseSchema, label = "Gemini call", describeResult }) {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const startTime = Date.now();
   let content;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await getGeminiClient().models.generateContent({
       model,
       contents: prompt,
       config: {
@@ -89,7 +79,7 @@ async function generateJson({ prompt, responseSchema, label = "Gemini call", des
   }
 }
 
-module.exports = {
+export {
   generateJson,
   PASSAGE_RESPONSE_SCHEMA,
   QUESTION_RESPONSE_SCHEMA,

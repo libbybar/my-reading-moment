@@ -1,7 +1,15 @@
-jest.mock("fs");
+import { jest } from "@jest/globals";
 
-const fs = require("fs");
-const { writeDebugLog, runWithRequestId } = require("../src/services/debugLogger");
+const fs = {
+  mkdirSync: jest.fn(),
+  appendFileSync: jest.fn(),
+};
+
+jest.unstable_mockModule("fs", () => ({
+  default: fs,
+}));
+
+const { writeDebugLog, runWithRequestId } = await import("../src/services/debugLogger.js");
 
 const ORIGINAL_ENV = process.env;
 
@@ -33,8 +41,6 @@ describe("debugLogger", () => {
   });
 
   test("does not write during automated tests, even when TIMING_LOG_ENABLED=true", () => {
-    // process.env.NODE_ENV is already "test" here — Jest's real environment,
-    // not faked — this is the exact scenario the guard exists for.
     process.env.TIMING_LOG_ENABLED = "true";
 
     writeDebugLog({ tag: "Route", label: "test" });

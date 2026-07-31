@@ -1,18 +1,18 @@
-jest.mock("../src/services/llmProvider/geminiClient", () => ({
+import { jest } from "@jest/globals";
+import { runLlmProviderContractTests } from "./support/llmProviderContract.js";
+
+const geminiClient = {
   generateJson: jest.fn(),
   PASSAGE_RESPONSE_SCHEMA: {},
   QUESTION_RESPONSE_SCHEMA: {},
   EVALUATION_RESPONSE_SCHEMA: {},
-}));
+};
 
-const geminiClient = require("../src/services/llmProvider/geminiClient");
-const geminiProvider = require("../src/services/llmProvider/geminiProvider");
-const { runLlmProviderContractTests } = require("./support/llmProviderContract");
+jest.unstable_mockModule("../src/services/llmProvider/geminiClient.js", () => geminiClient);
 
-// A single canned Gemini response shaped to satisfy generatePassage,
-// generateQuestion, and evaluateAnswer at once — each function only reads
-// the fields it cares about, so one fixture covers the shared contract suite
-// regardless of which function is under test.
+const { default: geminiProvider } = await import("../src/services/llmProvider/geminiProvider.js");
+
+// One fixture covers the shared provider contract suite across all Gemini methods.
 const GENERIC_CONTENT = {
   title: "כותרת לדוגמה",
   text: "קטע לדוגמה לצורך בדיקה.",

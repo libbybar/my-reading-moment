@@ -1,7 +1,7 @@
-const crypto = require("crypto");
+import crypto from "crypto";
 
-const geminiClient = require("./geminiClient");
-const { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt } = require("./prompts");
+import * as geminiClient from "./geminiClient.js";
+import { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt } from "./prompts.js";
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -70,8 +70,7 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
     throw new Error("Gemini returned a question with a missing prompt or expectedMeaning");
   }
 
-  // Unlike the mock, Gemini has no finite seed list to exhaust — it can
-  // always generate another question, so this never reports "exhausted".
+  // Gemini has no finite seed list, so this provider never reports exhaustion.
   return {
     status: "ok",
     question: {
@@ -117,4 +116,8 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-module.exports = { generatePassage, generateQuestion, evaluateAnswer };
+const geminiProvider = { generatePassage, generateQuestion, evaluateAnswer };
+
+export { generatePassage, generateQuestion, evaluateAnswer };
+
+export default geminiProvider;

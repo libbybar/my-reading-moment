@@ -1,4 +1,4 @@
-const readingSessionStore = require("../src/services/readingSessionStore");
+import readingSessionStore from "../src/services/readingSessionStore.js";
 
 describe("readingSessionStore", () => {
   const passage = { id: "test-passage-1", title: "Title", text: "Text", readingLevel: "beginner" };

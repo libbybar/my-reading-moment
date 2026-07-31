@@ -1,22 +1,31 @@
-const express = require("express");
+import express from "express";
 
-const mockChildProfiles = require("../data/mockChildProfiles");
+import * as parentRepository from "../repositories/parentRepository.js";
 
 const router = express.Router();
 
-function toSafeChildProfile(profile) {
+function toSafeChildProfile(child) {
   return {
-    id: profile.id,
-    name: profile.name,
-    grammaticalGender: profile.grammaticalGender,
-    readingLevel: profile.readingLevel,
+    id: child._id,
+    name: child.name,
+    grammaticalGender: child.grammaticalGender,
+    readingLevel: child.learningProfile.readingLevel,
   };
 }
 
-router.get("/", (req, res) => {
-  res.status(200).json({
-    childProfiles: mockChildProfiles.map(toSafeChildProfile),
-  });
+router.get("/", async (req, res) => {
+  try {
+    const parent = await parentRepository.findFirst();
+    const children = parent ? parent.children : [];
+
+    res.status(200).json({
+      childProfiles: children.map(toSafeChildProfile),
+    });
+  } catch {
+    res.status(500).json({
+      error: "Failed to load child profiles",
+    });
+  }
 });
 
-module.exports = router;
+export default router;

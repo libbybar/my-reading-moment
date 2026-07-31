@@ -1,9 +1,16 @@
-jest.mock("../src/services/llmProvider");
+import { jest } from "@jest/globals";
+import request from "supertest";
 
-const request = require("supertest");
-const app = require("../src/app");
-const llmProvider = require("../src/services/llmProvider");
-const readingSessionStore = require("../src/services/readingSessionStore");
+const llmProvider = {
+  generateQuestion: jest.fn(),
+};
+
+jest.unstable_mockModule("../src/services/llmProvider/index.js", () => ({
+  default: llmProvider,
+}));
+
+const { default: app } = await import("../src/app.js");
+const { default: readingSessionStore } = await import("../src/services/readingSessionStore.js");
 
 function seedSession() {
   return readingSessionStore.createSession({

@@ -25,9 +25,7 @@ const GENERIC_PROFILES = [
 ]
 
 function renderPage() {
-  // StrictMode matches main.jsx; router + active-child context let
-  // ChildSelectionPage call useNavigate/useActiveChild. Navigation itself
-  // is covered by AppChildSelectionFlow.test.jsx, not here.
+  // StrictMode keeps stale-effect behavior aligned with the real app.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
@@ -166,13 +164,10 @@ describe('ChildSelectionPage', () => {
       readingLevel: 'beginner',
     }
 
-    // The current (second) effect instance resolves first...
     resolveCurrent({ childProfiles: [currentProfile] })
     await screen.findByRole('button', { name: currentProfile.name })
 
-    // ...then the stale (first, already-cleaned-up) effect instance resolves
-    // afterwards. Its `ignore` flag was set to true by its own cleanup, so
-    // this must be a no-op rather than clobbering the current profiles.
+    // The cleaned-up first effect must not clobber the current profiles.
     resolveStale({ childProfiles: [staleProfile] })
     await Promise.resolve()
     await Promise.resolve()

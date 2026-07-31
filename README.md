@@ -32,6 +32,7 @@ The project currently includes:
 - A basic flow for selecting a child and requesting a reading exercise
 - Loading and error states
 - Reusable UI components
+- MongoDB-backed parent account registration (`POST /api/auth/register`)
 - Automated client and server tests
 - Client and server linting
 - GitHub Actions CI checks
@@ -41,12 +42,12 @@ Reading passages and comprehension questions are generated through a pluggable L
 - `mock` (default) — deterministic, no external calls; used for local development and by every automated test
 - `gemini` — real generation via the Google Gemini API, enabled locally with environment variables (see "LLM Provider Configuration" below)
 
-Persistent child profiles and a database are not yet part of the project.
+MongoDB persistence currently covers parent accounts, with an embedded child data model. Child profiles used by the reading-session flow itself are still mocked/in-memory; migrating them onto the same persistent model is in progress.
 
 ## Project Structure
 
 - `client/` — React application built with Vite
-- `server/` — Express API using CommonJS
+- `server/` — Express API using ES modules (ESM)
 - `.github/workflows/` — GitHub Actions CI configuration
 
 ## Prerequisites
@@ -85,7 +86,7 @@ http://localhost:5173
 
 ## Run the Server
 
-Create a local environment file before starting the server:
+Create a local environment file before starting the server, and set `MONGODB_URI` in `server/.env` to a running MongoDB instance — the server connects to it on startup and won't start without it:
 
 ```bash
 cd server

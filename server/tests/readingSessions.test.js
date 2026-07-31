@@ -1,8 +1,8 @@
-const request = require("supertest");
-const app = require("../src/app");
-const mockPassages = require("../src/data/mockPassages");
-const mockChildProfiles = require("../src/data/mockChildProfiles");
-const readingSessionStore = require("../src/services/readingSessionStore");
+import request from "supertest";
+import app from "../src/app.js";
+import mockPassages from "../src/data/mockPassages.js";
+import mockChildProfiles from "../src/data/mockChildProfiles.js";
+import readingSessionStore from "../src/services/readingSessionStore.js";
 
 describe("POST /api/reading-sessions/preview", () => {
   afterEach(() => {

@@ -15,10 +15,6 @@ const LEGACY_QUESTION_TEXT = 'LEGACY TEXT — MUST NOT BE USED'
 
 const ACTIVE_CHILD_ID = 'mock-active-child-id'
 
-// Test-only consumer that surfaces LearningPathProvider's internal state as
-// text, the same way the CHILD_SELECTION_SENTINEL/CHILD_HOME_SENTINEL routes
-// below surface navigation — so a test can assert on recorded progress
-// without needing to render the real ChildHomePage.
 function ProgressProbe() {
   const { progressByChildId } = useLearningPath()
   return <div data-testid="progress-probe">{JSON.stringify(progressByChildId)}</div>
@@ -54,11 +50,7 @@ function renderPage({
   initialActiveChildId = ACTIVE_CHILD_ID,
   initialProgressByChildId = {},
 } = {}) {
-  // Matches main.jsx exactly: StrictMode double-invokes effects in
-  // development, so tests must exercise that too, or they can pass while
-  // the real app doesn't. `initialActiveChildId`/`initialProgressByChildId`
-  // seed ActiveChildProvider/LearningPathProvider deterministically, the
-  // same way MemoryRouter's initialEntries do.
+  // StrictMode keeps stale-effect behavior aligned with the real app.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
@@ -143,9 +135,6 @@ async function renderWithExerciseLoaded(exercise, answers, nextQuestion) {
   await screen.findByText(exercise.question.prompt)
 }
 
-// Drives 3 consecutive wrong answers (each requiring a fresh replacement
-// question in between, matching the real retry flow) to reach
-// attemptLimitReached.
 async function driveThreeIncorrectAttemptsToLimit() {
   const nextQuestionMock = vi
     .fn()
@@ -433,10 +422,7 @@ describe('ReadingSessionPage', () => {
     const returnButton = getReturnToPathButton()
     fireEvent.click(returnButton)
 
-    // Force the DOM back to an enabled state to prove the in-flight ref
-    // guard — not merely React state or the disabled attribute — is what
-    // blocks a second click, the same pattern already used for the submit
-    // and replacement actions above.
+    // Bypass the disabled attribute to exercise the synchronous ref guard.
     returnButton.disabled = false
     fireEvent.click(returnButton)
 
@@ -548,9 +534,7 @@ describe('ReadingSessionPage', () => {
     const submitButton = getSubmitButton()
     fireEvent.click(submitButton)
 
-    // Force the DOM back to an enabled state to prove the in-flight ref
-    // guard — not merely React state or the disabled attribute — is what
-    // blocks a second submission while the first request is still pending.
+    // Bypass the disabled attribute to exercise the synchronous ref guard.
     submitButton.disabled = false
 
     fireEvent.click(submitButton)
@@ -700,9 +684,7 @@ describe('ReadingSessionPage', () => {
     const replacementButton = getReplacementButton()
     fireEvent.click(replacementButton)
 
-    // Force the DOM back to an enabled state to prove the in-flight ref
-    // guard — not merely React state or the disabled attribute — blocks a
-    // second replacement request while the first is still pending.
+    // Bypass the disabled attribute to exercise the synchronous ref guard.
     replacementButton.disabled = false
     fireEvent.click(replacementButton)
 
@@ -729,11 +711,9 @@ describe('ReadingSessionPage', () => {
     expect(screen.queryByText(mockExercise.question.prompt)).not.toBeInTheDocument()
     expect(screen.queryByText(LEGACY_QUESTION_TEXT)).not.toBeInTheDocument()
 
-    // passage unchanged
     expect(screen.getByText(mockExercise.title)).toBeInTheDocument()
     expect(screen.getByText(mockExercise.story)).toBeInTheDocument()
 
-    // back to answering, with a cleared, available input
     const answerField = getAnswerField()
     expect(answerField).not.toBeDisabled()
     expect(answerField).toHaveValue('')
@@ -791,8 +771,6 @@ describe('ReadingSessionPage', () => {
         ),
       ).toBeInTheDocument()
 
-      // The answer input must not reappear, as it would if a valid new
-      // question had been accepted.
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
       if (invalidResponse.question && invalidResponse.question.prompt) {

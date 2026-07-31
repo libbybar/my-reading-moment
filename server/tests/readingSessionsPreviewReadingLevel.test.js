@@ -2,7 +2,11 @@
 // "beginner" — the opposite of the production mockPassages.js order — so
 // these tests fail if the mock provider's passage supply ever regresses to
 // picking mockPassages[0].
-jest.mock("../src/data/mockPassages", () => [
+import { jest } from "@jest/globals";
+import request from "supertest";
+
+jest.unstable_mockModule("../src/data/mockPassages.js", () => ({
+  default: [
   {
     id: "fixture-passage-intermediate",
     title: "Fixture Intermediate Passage",
@@ -37,9 +41,11 @@ jest.mock("../src/data/mockPassages", () => [
       },
     ],
   },
-]);
+],
+}));
 
-jest.mock("../src/data/mockChildProfiles", () => [
+jest.unstable_mockModule("../src/data/mockChildProfiles.js", () => ({
+  default: [
   {
     id: "fixture-child-beginner",
     name: "Fixture Beginner Child",
@@ -61,13 +67,13 @@ jest.mock("../src/data/mockChildProfiles", () => [
     readingLevel: "advanced",
     interests: [],
   },
-]);
+],
+}));
 
-const request = require("supertest");
-const app = require("../src/app");
-const mockPassages = require("../src/data/mockPassages");
-const readingSessionStore = require("../src/services/readingSessionStore");
-const llmProvider = require("../src/services/llmProvider");
+const { default: app } = await import("../src/app.js");
+const { default: mockPassages } = await import("../src/data/mockPassages.js");
+const { default: readingSessionStore } = await import("../src/services/readingSessionStore.js");
+const { default: llmProvider } = await import("../src/services/llmProvider/index.js");
 
 describe("POST /api/reading-sessions/preview (passage supply by reading level, via the provider)", () => {
   afterEach(() => {

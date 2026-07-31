@@ -7,11 +7,6 @@ import { TEXT } from '../src/constants/text'
 import { theme } from '../src/styles/theme'
 import { fetchChildProfiles } from '../src/services/childProfileService'
 
-// This is the single authoritative test for the full child-selection flow:
-// selecting a child on /children, preserving the active child through real
-// route navigation, and reaching /child-home without a redirect or leaking
-// the internal id. It renders the real App and real routed pages — only the
-// external data boundary and avatar output are mocked.
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
 }))
@@ -52,13 +47,10 @@ describe('App child-selection flow', () => {
     const selectedProfile = GENERIC_PROFILES[0]
     fireEvent.click(await screen.findByRole('button', { name: selectedProfile.name }))
 
-    // Reached /child-home directly, showing the correct preserved child —
-    // not a redirect, and not some other/stale profile.
     expect(await screen.findByText(selectedProfile.name)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/child-home')
     expect(screen.queryByText(TEXT.childSelection.heading)).not.toBeInTheDocument()
 
-    // The internal id never leaks into the URL or the rendered UI.
     expect(window.location.href).not.toContain(selectedProfile.id)
     expect(document.body.textContent).not.toContain(selectedProfile.id)
   })

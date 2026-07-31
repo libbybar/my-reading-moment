@@ -157,13 +157,7 @@ function ReadingSessionPage() {
           return;
         }
 
-        // Only a correct answer ever unlocks progress (via handleReturnToPath
-        // below) — this branch never touches it. The count persists across
-        // "another question" replacements within this one visit, since it
-        // must accumulate across them to ever reach the limit. Once the
-        // limit is reached there is no way back into 'retry' — the only
-        // action from attemptLimitReached is returning to the path — so the
-        // count never needs to be reset.
+        // Incorrect attempts persist across replacement questions during this visit.
         const nextIncorrectAttemptCount = incorrectAttemptCount + 1;
         setIncorrectAttemptCount(nextIncorrectAttemptCount);
 
@@ -232,14 +226,7 @@ function ReadingSessionPage() {
   };
 
   const handleReturnToPath = (shouldAdvanceProgress) => {
-    // navigate() does not unmount this component synchronously, so a fast
-    // double-click could otherwise fire this twice before that happens —
-    // same class of bug isSubmittingRef/isGeneratingRef guard against above.
-    // Unlike those, this is a one-way latch: once navigation has started,
-    // there is nothing to reset it for. Shared by both the correct-answer
-    // path (shouldAdvanceProgress: true) and the attemptLimitReached path
-    // (shouldAdvanceProgress: false) — only a correct answer ever unlocks
-    // the next step; leaving from the attempt limit keeps the same step active.
+    // navigate() does not unmount synchronously; this latch prevents duplicate returns.
     if (hasReturnedToPathRef.current) {
       return;
     }
