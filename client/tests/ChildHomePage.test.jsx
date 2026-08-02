@@ -9,10 +9,18 @@ import { LearningPathProvider } from '../src/context/LearningPathProvider'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
-import { fetchChildProfiles } from '../src/services/childProfileService'
+import { fetchChildProfiles, ChildProfileServiceError } from '../src/services/childProfileService'
 
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
+  ChildProfileServiceError: class ChildProfileServiceError extends Error {
+    constructor(message, { status, body } = {}) {
+      super(message)
+      this.name = 'ChildProfileServiceError'
+      this.status = status
+      this.body = body
+    }
+  },
 }))
 
 vi.mock('../src/constants/childAvatars', () => ({
@@ -50,6 +58,7 @@ function renderChildHomePage({
                 <Route path="/child-home" element={<ChildHomePage />} />
                 <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
                 <Route path="/" element={<div>READING_SESSION_SENTINEL</div>} />
+                <Route path="/login" element={<div>LOGIN_SENTINEL</div>} />
               </Routes>
             </MemoryRouter>
           </LearningPathProvider>
@@ -210,6 +219,17 @@ describe('ChildHomePage', () => {
     renderChildHomePage()
 
     expect(await screen.findByText(TEXT.childHome.error)).toBeInTheDocument()
+  })
+
+  it('redirects to /login (not the generic error) when the profile fetch is unauthorized', async () => {
+    fetchChildProfiles.mockRejectedValue(
+      new ChildProfileServiceError('Request failed with status 401', { status: 401 }),
+    )
+
+    renderChildHomePage()
+
+    expect(await screen.findByText('LOGIN_SENTINEL')).toBeInTheDocument()
+    expect(screen.queryByText(TEXT.childHome.error)).not.toBeInTheDocument()
   })
 
   it('ignores a stale StrictMode-duplicate fetch that resolves after the current one', async () => {

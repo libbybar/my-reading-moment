@@ -1,9 +1,10 @@
 import crypto from "crypto";
 import express from "express";
 
-import mockChildProfiles from "../data/mockChildProfiles.js";
 import llmProvider from "../services/llmProvider/index.js";
 import readingSessionStore from "../services/readingSessionStore.js";
+import * as parentRepository from "../repositories/parentRepository.js";
+import { requireAuth } from "../middleware/authMiddleware.js";
 import { writeDebugLog, runWithRequestId } from "../services/debugLogger.js";
 import {
   isValidEvaluationResult,
@@ -54,7 +55,7 @@ function logError(label, error) {
 
 const PREVIEW_FAILURE_MESSAGE = "Failed to generate a reading question";
 
-router.post("/preview", async (req, res) => {
+router.post("/preview", requireAuth, async (req, res) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   return runWithRequestId(requestId, async () => {
@@ -69,7 +70,21 @@ router.post("/preview", async (req, res) => {
       });
     }
 
-    const child = mockChildProfiles.find((profile) => profile.id === childId);
+    // Scoped to the authenticated parent's own children, same ownership
+    // pattern as parentRepository.updateChild — a childId belonging to
+    // another parent must be indistinguishable from one that doesn't exist.
+    let child;
+
+    try {
+      const parent = await parentRepository.findById(req.parentId);
+
+      child = parent?.children.id(childId);
+    } catch {
+      // A malformed childId (not a valid ObjectId shape) throws a CastError
+      // from Mongoose's subdocument lookup — same "not found" response as
+      // a well-formed id that just doesn't match, not a 500.
+      child = null;
+    }
 
     if (!child) {
       return res.status(404).json({
@@ -86,11 +101,11 @@ router.post("/preview", async (req, res) => {
 
     try {
       const passage = await llmProvider.generatePassage({
-        readingLevel: child.readingLevel,
-        interests: child.interests,
+        readingLevel: child.learningProfile.readingLevel,
+        interests: child.learningProfile.interests,
       });
 
-      if (!isValidGeneratedPassage(passage, child.readingLevel)) {
+      if (!isValidGeneratedPassage(passage, child.learningProfile.readingLevel)) {
         throw new Error("generatePassage returned an invalid passage");
       }
 

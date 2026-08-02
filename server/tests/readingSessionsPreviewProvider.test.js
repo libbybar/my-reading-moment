@@ -11,7 +11,10 @@ jest.unstable_mockModule("../src/services/llmProvider/index.js", () => ({
 }));
 
 const { default: app } = await import("../src/app.js");
-const { default: mockChildProfiles } = await import("../src/data/mockChildProfiles.js");
+const testDb = await import("./support/testDb.js");
+const { createAuthenticatedParentWithChild } = await import("./support/testAuth.js");
+
+const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
 const validPassage = {
   id: "stub-passage",
@@ -21,31 +24,56 @@ const validPassage = {
 };
 
 describe("POST /api/reading-sessions/preview (provider integration)", () => {
-  afterEach(() => {
+  beforeAll(async () => {
+    process.env.JWT_SECRET = "test-secret";
+    await testDb.connect();
+  }, 20000);
+
+  afterEach(async () => {
     jest.resetAllMocks();
+    await testDb.clearDatabase();
   });
 
+  afterAll(async () => {
+    process.env.JWT_SECRET = ORIGINAL_JWT_SECRET;
+    await testDb.disconnect();
+  }, 20000);
+
+  async function createChildAndCookie() {
+    return createAuthenticatedParentWithChild({
+      name: "Test Child",
+      grammaticalGender: "female",
+      learningProfile: {
+        readingLevel: "beginner",
+        interests: ["חלל", "רובוטים"],
+      },
+    });
+  }
+
   test("calls generatePassage with the selected child's readingLevel and interests", async () => {
-    const child = mockChildProfiles.find((profile) => profile.id === "mock-child-profile-gaya");
+    const { childId, cookie, child } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({ status: "exhausted" });
 
     await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: child.id });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(llmProvider.generatePassage).toHaveBeenCalledWith({
-      readingLevel: child.readingLevel,
-      interests: child.interests,
+      readingLevel: child.learningProfile.readingLevel,
+      interests: child.learningProfile.interests,
     });
   });
 
   test("returns an error response when generatePassage rejects", async () => {
+    const { childId, cookie } = await createChildAndCookie();
     llmProvider.generatePassage.mockRejectedValue(new Error("provider exploded"));
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "mock-child-profile-gaya" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(500);
     expect(response.body).toEqual({ error: expect.any(String) });
@@ -61,11 +89,13 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
   ])(
     "returns an error response for %s, without calling generateQuestion",
     async (_label, malformedPassage) => {
+      const { childId, cookie } = await createChildAndCookie();
       llmProvider.generatePassage.mockResolvedValue(malformedPassage);
 
       const response = await request(app)
         .post("/api/reading-sessions/preview")
-        .send({ childId: "mock-child-profile-gaya" });
+        .set("Cookie", [cookie])
+        .send({ childId });
 
       expect(response.statusCode).toBe(500);
       expect(response.body).toEqual({ error: expect.any(String) });
@@ -74,18 +104,21 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
   );
 
   test("returns an error response when the provider rejects", async () => {
+    const { childId, cookie } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockRejectedValue(new Error("provider exploded"));
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "mock-child-profile-gaya" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(500);
     expect(response.body).toEqual({ error: expect.any(String) });
   });
 
   test("builds its response purely from whatever the provider returns, with no mock/real branching", async () => {
+    const { childId, cookie } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({
       status: "ok",
@@ -99,7 +132,8 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "mock-child-profile-gaya" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(200);
     expect(response.body.title).toBe(validPassage.title);
@@ -116,12 +150,14 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
   });
 
   test("returns a null question and an empty legacy questions list when the provider reports an exhausted question set", async () => {
+    const { childId, cookie } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({ status: "exhausted" });
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "mock-child-profile-gaya" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(200);
     expect(response.body.question).toBeNull();
@@ -129,12 +165,14 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
   });
 
   test("returns a stable error response when the provider returns an unexpected status", async () => {
+    const { childId, cookie } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({ status: "unexpected-status" });
 
     const response = await request(app)
       .post("/api/reading-sessions/preview")
-      .send({ childId: "mock-child-profile-gaya" });
+      .set("Cookie", [cookie])
+      .send({ childId });
 
     expect(response.statusCode).toBe(500);
     expect(response.body).toEqual({ error: expect.any(String) });

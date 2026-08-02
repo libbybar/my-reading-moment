@@ -1,5 +1,6 @@
 import * as parentRepository from "../repositories/parentRepository.js";
-import { hashPassword } from "./passwordHasher.js";
+import { hashPassword, comparePassword } from "./passwordHasher.js";
+import { generateToken } from "./tokenService.js";
 
 async function registerParent({ email, password }) {
   const existingParent = await parentRepository.findByEmail(email);
@@ -29,4 +30,26 @@ async function registerParent({ email, password }) {
   }
 }
 
-export { registerParent };
+// Unknown email and wrong password both return the same "invalidCredentials"
+// outcome — a login route must never let a caller distinguish "no such
+// account" from "wrong password" (that's how account enumeration works).
+async function loginParent({ email, password }) {
+  const parent = await parentRepository.findByEmailWithPasswordHash(email);
+
+  if (!parent) {
+    return { status: "invalidCredentials" };
+  }
+
+  const passwordMatches = await comparePassword(password, parent.passwordHash);
+
+  if (!passwordMatches) {
+    return { status: "invalidCredentials" };
+  }
+
+  const updatedParent = await parentRepository.recordLogin(parent._id);
+  const token = generateToken(parent);
+
+  return { status: "success", token, parent: updatedParent };
+}
+
+export { registerParent, loginParent };

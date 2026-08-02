@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 import { TEXT } from '../constants/text'
 import { resolveText } from '../constants/resolveText'
-import { fetchChildProfiles } from '../services/childProfileService'
+import { fetchChildProfiles, ChildProfileServiceError } from '../services/childProfileService'
 import { getChildAvatar } from '../constants/childAvatars'
 import { useActiveChild } from '../context/useActiveChild'
 import { useLearningPath } from '../context/useLearningPath'
@@ -49,6 +49,7 @@ function ChildHomePage() {
   const [childProfiles, setChildProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [needsLogin, setNeedsLogin] = useState(false)
 
   useEffect(() => {
     if (!activeChildId) {
@@ -66,10 +67,21 @@ function ChildHomePage() {
 
         setChildProfiles(data.childProfiles)
       })
-      .catch(() => {
-        if (!ignore) {
-          setError(TEXT.childHome.error)
+      .catch((caughtError) => {
+        if (ignore) {
+          return
         }
+
+        if (caughtError instanceof ChildProfileServiceError && caughtError.status === 401) {
+          // Set state and let the declarative <Navigate> below handle it,
+          // same as every other redirect in this component — an imperative
+          // navigate() call here would race the "profile not found" fallback
+          // further down, which also fires once childProfiles resolves empty.
+          setNeedsLogin(true)
+          return
+        }
+
+        setError(TEXT.childHome.error)
       })
       .finally(() => {
         if (!ignore) {
@@ -84,6 +96,10 @@ function ChildHomePage() {
 
   if (!activeChildId) {
     return <Navigate to="/children" replace />
+  }
+
+  if (needsLogin) {
+    return <Navigate to="/login" replace />
   }
 
   if (loading) {

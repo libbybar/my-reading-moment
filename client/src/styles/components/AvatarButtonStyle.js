@@ -12,6 +12,15 @@ export const StyledAvatarButton = styled.button`
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
   cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:hover {
+    transform: scale(1.06) translateY(-2px);
+  }
+
+  &:active {
+    transform: scale(1.02) translateY(1px);
+  }
 
   @media (max-width: 480px) {
     width: 80px;
@@ -27,6 +36,7 @@ export const AvatarCircle = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
 
   svg {
     width: 32px;

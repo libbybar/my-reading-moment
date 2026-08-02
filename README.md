@@ -122,6 +122,13 @@ cd server
 npm test
 ```
 
+## Run Server Coverage
+
+```bash
+cd server
+npm run test:coverage
+```
+
 ## Run Client Tests
 
 Automated client tests use Vitest and React Testing Library.
@@ -129,6 +136,13 @@ Automated client tests use Vitest and React Testing Library.
 ```bash
 cd client
 npm test
+```
+
+## Run Client Coverage
+
+```bash
+cd client
+npm run test:coverage
 ```
 
 ## Run Server Lint

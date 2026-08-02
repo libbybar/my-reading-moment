@@ -1,0 +1,46 @@
+# ALL_LICENSES
+
+Generated from the direct dependencies listed in:
+
+- `client/package.json`
+- `server/package.json`
+
+The project also includes `package-lock.json` files for both workspaces, which record the full transitive dependency tree.
+
+| Package | Version | License | Workspace |
+| --- | --- | --- | --- |
+| `@eslint/js` | 10.0.1 | MIT | client, server |
+| `@google/genai` | 2.14.0 | Apache-2.0 | server |
+| `@testing-library/jest-dom` | 6.9.1 | MIT | client |
+| `@testing-library/react` | 16.3.2 | MIT | client |
+| `@types/react` | 19.2.17 | MIT | client |
+| `@types/react-dom` | 19.2.3 | MIT | client |
+| `@vitejs/plugin-react` | 6.0.3 | MIT | client |
+| `@vitest/coverage-v8` | 4.1.10 | MIT | client |
+| `bcrypt` | 6.0.0 | MIT | server |
+| `cookie-parser` | 1.4.7 | MIT | server |
+| `cors` | 2.8.6 | MIT | server |
+| `dotenv` | 17.4.2 | BSD-2-Clause | server |
+| `eslint` | 10.6.0, 10.7.0 | MIT | client, server |
+| `eslint-plugin-react-hooks` | 7.1.1 | MIT | client |
+| `eslint-plugin-react-refresh` | 0.5.3 | MIT | client |
+| `express` | 5.2.1 | MIT | server |
+| `globals` | 17.7.0 | MIT | client, server |
+| `helmet` | 8.2.0 | MIT | server |
+| `jest` | 30.4.2 | MIT | server |
+| `jsdom` | 29.1.1 | MIT | client |
+| `jsonwebtoken` | 9.0.3 | MIT | server |
+| `lucide-react` | 1.24.0 | ISC | client |
+| `mongodb-memory-server` | 11.2.0 | MIT | server |
+| `mongoose` | 9.9.0 | MIT | server |
+| `motion` | 12.42.2 | MIT | client |
+| `nodemon` | 3.1.14 | MIT | server |
+| `react` | 19.2.7 | MIT | client |
+| `react-dom` | 19.2.7 | MIT | client |
+| `react-hook-form` | 7.81.0 | MIT | client |
+| `react-router` | 8.2.0 | MIT | client |
+| `styled-components` | 6.4.3 | MIT | client |
+| `supertest` | 7.2.2 | MIT | server |
+| `vite` | 8.1.4 | MIT | client |
+| `vitest` | 4.1.10 | MIT | client |
+| `zod` | 4.4.3 | MIT | client |
