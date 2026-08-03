@@ -12,9 +12,7 @@ function createSession({ passage, currentQuestion, askedQuestionIds, parentId, c
     passage: structuredClone(passage),
     currentQuestion: structuredClone(currentQuestion),
     askedQuestionIds: structuredClone(askedQuestionIds),
-    // Needed to attribute answer events back to the right child; the
-    // session is created only from the authenticated /preview request, so
-    // both ids are already known and trustworthy at that point.
+    // Trusted because sessions are created only by authenticated /preview.
     parentId,
     childId,
   };

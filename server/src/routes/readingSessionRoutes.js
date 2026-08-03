@@ -70,9 +70,7 @@ router.post("/preview", requireAuth, async (req, res) => {
       });
     }
 
-    // Scoped to the authenticated parent's own children, same ownership
-    // pattern as parentRepository.updateChild — a childId belonging to
-    // another parent must be indistinguishable from one that doesn't exist.
+    // Scope lookup to the authenticated parent's own children.
     let child;
 
     try {
@@ -80,9 +78,7 @@ router.post("/preview", requireAuth, async (req, res) => {
 
       child = parent?.children.id(childId);
     } catch {
-      // A malformed childId (not a valid ObjectId shape) throws a CastError
-      // from Mongoose's subdocument lookup — same "not found" response as
-      // a well-formed id that just doesn't match, not a 500.
+      // Malformed ids get the same response as unknown ids.
       child = null;
     }
 
@@ -93,7 +89,7 @@ router.post("/preview", requireAuth, async (req, res) => {
     }
 
     if (!isValidGrammaticalGender(child.grammaticalGender)) {
-      // Internal profile data must not leak through the public error shape.
+      // Do not leak invalid internal profile data through the API.
       return res.status(500).json({
         error: PREVIEW_FAILURE_MESSAGE,
       });
@@ -203,8 +199,7 @@ router.post("/answers", async (req, res) => {
 
       res.status(200).json(toSafeEvaluationResult(result));
 
-      // Best-effort: recording session history must never affect the
-      // evaluation response the child is already waiting on.
+      // Learning history is best-effort after the answer response is sent.
       try {
         await parentRepository.addLearningEvent(session.parentId, session.childId, {
           type: "answer_attempt",

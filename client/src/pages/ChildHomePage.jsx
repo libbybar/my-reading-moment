@@ -23,8 +23,6 @@ import {
 
 const TOTAL_STATIONS = 12
 
-// Wider now that the path isn't boxed into a 480px card — see
-// ChildHomeContent in ChildHomePageStyle.js for the page's own width.
 const STATIONS_PER_ROW = 4
 
 const STATION_WOBBLE_PATTERN_PX = [0, -6, 6]
@@ -56,7 +54,7 @@ function ChildHomePage() {
       return undefined
     }
 
-    // StrictMode can resolve a stale fetch after the cleanup has run.
+    // StrictMode can resolve a stale fetch after cleanup.
     let ignore = false
 
     fetchChildProfiles()
@@ -73,10 +71,7 @@ function ChildHomePage() {
         }
 
         if (caughtError instanceof ChildProfileServiceError && caughtError.status === 401) {
-          // Set state and let the declarative <Navigate> below handle it,
-          // same as every other redirect in this component — an imperative
-          // navigate() call here would race the "profile not found" fallback
-          // further down, which also fires once childProfiles resolves empty.
+          // Avoid racing the "profile not found" redirect below.
           setNeedsLogin(true)
           return
         }

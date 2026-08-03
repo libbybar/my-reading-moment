@@ -37,9 +37,7 @@ function isValidInterests(value) {
 
 router.get("/", requireAuth, async (req, res) => {
   try {
-    // Rare edge case (e.g. the account was deleted after the token was
-    // issued, before it expired) — same graceful empty-list fallback as
-    // before, not an error.
+    // Token may outlive a deleted parent account.
     const parent = await parentRepository.findById(req.parentId);
     const children = parent ? parent.children : [];
 

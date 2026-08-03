@@ -1,9 +1,6 @@
 import styled from 'styled-components'
 
-// No Card here on purpose — the path sits directly on the page's own cream
-// background, with room to spread out, instead of being boxed into a small
-// white window. Width is generous but still bounded, so it doesn't sprawl
-// edge-to-edge on very wide monitors.
+// Bounded width gives the path room without sprawling on wide screens.
 export const ChildHomeContent = styled.div`
   width: 100%;
   max-width: 640px;
@@ -59,8 +56,7 @@ export const StationRow = styled.div`
   }
 `
 
-// Height/bottom must match StationRow's margin-bottom (the gap it bridges).
-// Left/right offsets must match half the station wrapper width.
+// Bridges StationRow's vertical gap; side offsets align with station centers.
 export const StationRowConnector = styled.div`
   position: absolute;
   bottom: -36px;

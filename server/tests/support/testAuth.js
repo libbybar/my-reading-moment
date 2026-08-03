@@ -3,10 +3,7 @@ import { generateToken, AUTH_COOKIE_NAME } from "../../src/services/tokenService
 
 let parentCounter = 0;
 
-// Test-only: mints a real parent (with optional embedded children) and a
-// valid auth cookie for it, so reading-session tests can authenticate
-// without going through the full register/login HTTP flow — auth itself is
-// already covered by authLogin.test.js/authMiddleware.test.js.
+// Lets tests authenticate without repeating the register/login flow.
 async function createAuthenticatedParent({ children = [] } = {}) {
   parentCounter += 1;
 
@@ -19,8 +16,7 @@ async function createAuthenticatedParent({ children = [] } = {}) {
   return { parent, cookie: `${AUTH_COOKIE_NAME}=${generateToken(parent)}` };
 }
 
-// Convenience for the common case: exactly one child, needed as both an id
-// (for request bodies) and the full subdocument (for assertions).
+// Common case: one child id for requests and the subdocument for assertions.
 async function createAuthenticatedParentWithChild(child) {
   const { parent, cookie } = await createAuthenticatedParent({ children: [child] });
 
