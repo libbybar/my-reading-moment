@@ -15,7 +15,8 @@ export const ProfileGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 16px;
+  gap: 24px;
+  margin-bottom: 20px;
 `
 
 // Avatar + its edit button, stacked with real spacing instead of a bare div

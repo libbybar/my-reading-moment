@@ -24,7 +24,12 @@ async function createAuthenticatedParent({ children = [] } = {}) {
 async function createAuthenticatedParentWithChild(child) {
   const { parent, cookie } = await createAuthenticatedParent({ children: [child] });
 
-  return { childId: parent.children[0]._id.toString(), cookie, child: parent.children[0] };
+  return {
+    parentId: parent._id.toString(),
+    childId: parent.children[0]._id.toString(),
+    cookie,
+    child: parent.children[0],
+  };
 }
 
 export { createAuthenticatedParent, createAuthenticatedParentWithChild };

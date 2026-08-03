@@ -129,6 +129,8 @@ router.post("/preview", requireAuth, async (req, res) => {
           passage: toPassageSnapshot(passage),
           currentQuestion: result.question,
           askedQuestionIds: [result.question.id],
+          parentId: req.parentId,
+          childId,
         });
 
         sessionId = session.sessionId;
@@ -200,6 +202,18 @@ router.post("/answers", async (req, res) => {
       }
 
       res.status(200).json(toSafeEvaluationResult(result));
+
+      // Best-effort: recording session history must never affect the
+      // evaluation response the child is already waiting on.
+      try {
+        await parentRepository.addLearningEvent(session.parentId, session.childId, {
+          type: "answer_attempt",
+          source: "system",
+          payload: { questionId: result.questionId, isCorrect: result.isCorrect },
+        });
+      } catch (eventError) {
+        logError("POST /answers learningEvent", eventError);
+      }
     } catch (error) {
       logError("POST /answers", error);
       res.status(500).json({

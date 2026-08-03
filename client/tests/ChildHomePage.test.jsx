@@ -5,7 +5,6 @@ import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ChildHomePage from '../src/pages/ChildHomePage'
 import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
-import { LearningPathProvider } from '../src/context/LearningPathProvider'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
@@ -43,25 +42,20 @@ const OTHER_PROFILE = {
 
 const ACTIVE_STATION_ACCESSIBLE_NAME = `${TEXT.childHome.stepLabelPrefix} 1, ${TEXT.childHome.activeStationAccessibleLabel}`
 
-function renderChildHomePage({
-  initialActiveChildId = ACTIVE_PROFILE.id,
-  initialProgressByChildId = {},
-} = {}) {
+function renderChildHomePage({ initialActiveChildId = ACTIVE_PROFILE.id } = {}) {
   // StrictMode keeps stale-effect behavior aligned with the real app.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
         <ActiveChildProvider initialActiveChildId={initialActiveChildId}>
-          <LearningPathProvider initialProgressByChildId={initialProgressByChildId}>
-            <MemoryRouter initialEntries={['/child-home']}>
-              <Routes>
-                <Route path="/child-home" element={<ChildHomePage />} />
-                <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
-                <Route path="/" element={<div>READING_SESSION_SENTINEL</div>} />
-                <Route path="/login" element={<div>LOGIN_SENTINEL</div>} />
-              </Routes>
-            </MemoryRouter>
-          </LearningPathProvider>
+          <MemoryRouter initialEntries={['/child-home']}>
+            <Routes>
+              <Route path="/child-home" element={<ChildHomePage />} />
+              <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
+              <Route path="/" element={<div>READING_SESSION_SENTINEL</div>} />
+              <Route path="/login" element={<div>LOGIN_SENTINEL</div>} />
+            </Routes>
+          </MemoryRouter>
         </ActiveChildProvider>
       </ThemeProvider>
     </StrictMode>,
@@ -138,11 +132,11 @@ describe('ChildHomePage', () => {
   })
 
   it('renders step 1 as completed and step 2 as the new active station after one recorded completion', async () => {
-    fetchChildProfiles.mockResolvedValue({ childProfiles: [ACTIVE_PROFILE] })
-
-    renderChildHomePage({
-      initialProgressByChildId: { [ACTIVE_PROFILE.id]: { completedStepCount: 1 } },
+    fetchChildProfiles.mockResolvedValue({
+      childProfiles: [{ ...ACTIVE_PROFILE, completedStepCount: 1 }],
     })
+
+    renderChildHomePage()
 
     await screen.findByText(ACTIVE_PROFILE.name)
 
@@ -167,11 +161,11 @@ describe('ChildHomePage', () => {
   })
 
   it('clicking the new active station after progress still navigates to /', async () => {
-    fetchChildProfiles.mockResolvedValue({ childProfiles: [ACTIVE_PROFILE] })
-
-    renderChildHomePage({
-      initialProgressByChildId: { [ACTIVE_PROFILE.id]: { completedStepCount: 1 } },
+    fetchChildProfiles.mockResolvedValue({
+      childProfiles: [{ ...ACTIVE_PROFILE, completedStepCount: 1 }],
     })
+
+    renderChildHomePage()
 
     const activeButton = await screen.findByRole('button', {
       name: `${TEXT.childHome.stepLabelPrefix} 2, ${TEXT.childHome.activeStationAccessibleLabel}`,

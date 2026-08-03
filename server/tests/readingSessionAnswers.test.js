@@ -2,14 +2,15 @@ import request from "supertest";
 import app from "../src/app.js";
 import mockPassages from "../src/data/mockPassages.js";
 import readingSessionStore from "../src/services/readingSessionStore.js";
+import Parent from "../src/models/Parent.js";
 import * as testDb from "./support/testDb.js";
 import { createAuthenticatedParentWithChild } from "./support/testAuth.js";
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
-async function createSessionId() {
+async function createSession() {
   const [passage] = mockPassages;
-  const { childId, cookie } = await createAuthenticatedParentWithChild({
+  const { parentId, childId, cookie } = await createAuthenticatedParentWithChild({
     name: "Test Child",
     grammaticalGender: "female",
     learningProfile: { readingLevel: passage.readingLevel, interests: [] },
@@ -20,7 +21,13 @@ async function createSessionId() {
     .set("Cookie", [cookie])
     .send({ childId });
 
-  return previewResponse.body.sessionId;
+  return { sessionId: previewResponse.body.sessionId, parentId, childId };
+}
+
+async function createSessionId() {
+  const { sessionId } = await createSession();
+
+  return sessionId;
 }
 
 describe("POST /api/reading-sessions/answers", () => {
@@ -148,5 +155,43 @@ describe("POST /api/reading-sessions/answers", () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.body).toEqual({ error: "Session not found" });
+  });
+
+  test("records an answer_attempt learning event for the session's child on a correct answer", async () => {
+    const { sessionId, parentId, childId } = await createSession();
+
+    await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "עלה ירוק",
+    });
+
+    const parent = await Parent.findById(parentId);
+    const child = parent.children.id(childId);
+
+    expect(child.learningEvents).toHaveLength(1);
+    expect(child.learningEvents[0]).toMatchObject({
+      type: "answer_attempt",
+      source: "system",
+      payload: { isCorrect: true },
+    });
+  });
+
+  test("records an answer_attempt learning event on a wrong answer too", async () => {
+    const { sessionId, parentId, childId } = await createSession();
+
+    await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "משהו לגמרי לא קשור",
+    });
+
+    const parent = await Parent.findById(parentId);
+    const child = parent.children.id(childId);
+
+    expect(child.learningEvents).toHaveLength(1);
+    expect(child.learningEvents[0]).toMatchObject({
+      type: "answer_attempt",
+      source: "system",
+      payload: { isCorrect: false },
+    });
   });
 });

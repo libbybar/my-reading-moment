@@ -148,5 +148,119 @@ describe("GET /api/child-profiles", () => {
       expect(response.body.childProfiles[0].name).toBe("דני");
     });
 
+    test("includes the child's completedStepCount", async () => {
+      const response = await request(app).get("/api/child-profiles").set("Cookie", cookie);
+
+      const [gayaChild] = parent.children;
+      const gaya = response.body.childProfiles.find(
+        (profile) => profile.id === gayaChild._id.toString(),
+      );
+
+      expect(gaya.completedStepCount).toBe(0);
+    });
+  });
+});
+
+describe("POST /api/child-profiles/:childId/complete-step", () => {
+  beforeAll(async () => {
+    process.env.JWT_SECRET = "test-secret";
+    await testDb.connect();
+  });
+
+  afterEach(async () => {
+    await testDb.clearDatabase();
+  });
+
+  afterAll(async () => {
+    process.env.JWT_SECRET = ORIGINAL_JWT_SECRET;
+    await testDb.disconnect();
+  });
+
+  async function registerAndLogin(email, password) {
+    await request(app).post("/api/auth/register").send({ email, password });
+    const loginResponse = await request(app).post("/api/auth/login").send({ email, password });
+
+    return loginResponse.headers["set-cookie"];
+  }
+
+  test("returns 401 without a valid auth cookie", async () => {
+    const response = await request(app).post("/api/child-profiles/some-id/complete-step");
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  test("increments completedStepCount and returns the updated profile", async () => {
+    const cookie = await registerAndLogin("parent@example.com", "correct-horse");
+    const parent = await Parent.findOneAndUpdate(
+      { email: "parent@example.com" },
+      {
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    const childId = parent.children[0]._id.toString();
+
+    const response = await request(app)
+      .post(`/api/child-profiles/${childId}/complete-step`)
+      .set("Cookie", cookie);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject({ id: childId, completedStepCount: 1 });
+  });
+
+  test("increments again, rather than resetting, on a second call", async () => {
+    const cookie = await registerAndLogin("parent@example.com", "correct-horse");
+    const parent = await Parent.findOneAndUpdate(
+      { email: "parent@example.com" },
+      {
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    const childId = parent.children[0]._id.toString();
+
+    await request(app).post(`/api/child-profiles/${childId}/complete-step`).set("Cookie", cookie);
+    const response = await request(app)
+      .post(`/api/child-profiles/${childId}/complete-step`)
+      .set("Cookie", cookie);
+
+    expect(response.body.completedStepCount).toBe(2);
+  });
+
+  test("returns 404 when the child does not belong to the authenticated parent", async () => {
+    const cookie = await registerAndLogin("parent@example.com", "correct-horse");
+    await registerAndLogin("other-parent@example.com", "another-password");
+    const otherParent = await Parent.findOneAndUpdate(
+      { email: "other-parent@example.com" },
+      {
+        children: [
+          {
+            name: "דני",
+            grammaticalGender: "male",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      },
+      { returnDocument: "after", runValidators: true },
+    );
+    const otherChildId = otherParent.children[0]._id.toString();
+
+    const response = await request(app)
+      .post(`/api/child-profiles/${otherChildId}/complete-step`)
+      .set("Cookie", cookie);
+
+    expect(response.statusCode).toBe(404);
   });
 });

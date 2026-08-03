@@ -1,4 +1,15 @@
 import styled from 'styled-components'
+import Card from '../components/ui/Card'
+
+// Widens on larger screens only, same approach as AuthPageStyle.js's
+// AuthCard — the base Card's 480px cap stays untouched for every other page.
+// A paragraph of Hebrew text benefits from more room than a login form does.
+export const ExerciseCard = styled(Card)`
+  @media (min-width: 768px) {
+    max-width: 700px;
+    padding: 48px;
+  }
+`
 
 export const ExerciseContent = styled.div`
   font-family: ${(props) => props.theme.fonts.main};
@@ -36,8 +47,13 @@ const SectionCard = styled.section`
   }
 `
 
-export const StoryCard = styled(SectionCard)`
-  background: ${(props) => props.theme.colors.primaryLight};
+// Unlike QuestionsCard, the story no longer sits in its own colored box — on
+// a page with just one passage, a background box read as visual noise and
+// its padding compounded with the ch-capped text width to make the passage
+// look cramped. Kept as its own styled export (not just inline in the page)
+// only for the top spacing from the title above.
+export const StoryCard = styled.div`
+  margin-top: 20px;
 `
 
 export const QuestionsCard = styled(SectionCard)`
@@ -53,7 +69,6 @@ export const StoryText = styled.p`
   color: ${(props) => props.theme.colors.text};
   font-size: 18px;
   line-height: 2.2;
-  max-width: 60ch;
   margin: 0;
   overflow-wrap: break-word;
 `

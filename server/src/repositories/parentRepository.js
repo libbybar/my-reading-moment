@@ -92,6 +92,28 @@ async function recordLogin(parentId) {
   );
 }
 
+// $inc, not a read-modify-write of the count, so concurrent completions
+// (e.g. two tabs) can't clobber each other.
+async function incrementCompletedStepCount(parentId, childId) {
+  const parent = await Parent.findOneAndUpdate(
+    { _id: parentId, "children._id": childId },
+    { $inc: { "children.$.learningProfile.completedStepCount": 1 } },
+    { returnDocument: "after", runValidators: true },
+  );
+
+  return parent ? parent.children.id(childId) : null;
+}
+
+async function addLearningEvent(parentId, childId, event) {
+  const parent = await Parent.findOneAndUpdate(
+    { _id: parentId, "children._id": childId },
+    { $push: { "children.$.learningEvents": event } },
+    { returnDocument: "after", runValidators: true },
+  );
+
+  return parent ? parent.children.id(childId) : null;
+}
+
 export {
   findByEmail,
   findByEmailWithPasswordHash,
@@ -100,5 +122,7 @@ export {
   addChild,
   updateChild,
   recordLogin,
+  incrementCompletedStepCount,
+  addLearningEvent,
   DuplicateEmailError,
 };

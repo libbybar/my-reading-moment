@@ -44,3 +44,10 @@ export function updateChildProfile(childId, updates) {
     body: JSON.stringify(updates),
   }).then(parseJsonResponse)
 }
+
+export function completeLearningPathStep(childId) {
+  return fetch(`${CHILD_PROFILES_URL}/${childId}/complete-step`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then(parseJsonResponse)
+}

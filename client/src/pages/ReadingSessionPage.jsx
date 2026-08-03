@@ -11,9 +11,10 @@ import {
   submitAnswer,
   fetchNextQuestion,
 } from '../services/readingSessionService';
+import { completeLearningPathStep } from '../services/childProfileService';
 import { useActiveChild } from '../context/useActiveChild';
-import { useLearningPath } from '../context/useLearningPath';
 import {
+  ExerciseCard,
   ExerciseContent,
   ExerciseTitle,
   SectionHeading,
@@ -73,7 +74,6 @@ const MAX_INCORRECT_ATTEMPTS = 3;
 
 function ReadingSessionPage() {
   const { activeChildId } = useActiveChild();
-  const { completeNextLearningPathStep } = useLearningPath();
   const navigate = useNavigate();
   const [exercise, setExercise] = useState(null);
   const [error, setError] = useState(null);
@@ -234,11 +234,16 @@ function ReadingSessionPage() {
     hasReturnedToPathRef.current = true;
     setIsReturningToPath(true);
 
-    if (shouldAdvanceProgress) {
-      completeNextLearningPathStep(activeChildId);
-    }
+    // A failed progress write must never trap the child on this screen —
+    // navigate regardless, same best-effort spirit as the server's own
+    // learning-event recording.
+    const advance = shouldAdvanceProgress
+      ? completeLearningPathStep(activeChildId).catch(() => {})
+      : Promise.resolve();
 
-    navigate('/child-home');
+    advance.finally(() => {
+      navigate('/child-home');
+    });
   };
 
   if (!activeChildId) {
@@ -267,7 +272,7 @@ function ReadingSessionPage() {
 
   return (
     <PageShell>
-      <Card>
+      <ExerciseCard>
         <ExerciseContent>
           <ExerciseTitle>{exercise.title}</ExerciseTitle>
 
@@ -308,7 +313,7 @@ function ReadingSessionPage() {
             )}
           </QuestionsCard>
         </ExerciseContent>
-      </Card>
+      </ExerciseCard>
     </PageShell>
   );
 }

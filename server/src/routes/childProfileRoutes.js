@@ -15,6 +15,7 @@ function toSafeChildProfile(child) {
     grammaticalGender: child.grammaticalGender,
     readingLevel: child.learningProfile.readingLevel,
     interests: child.learningProfile.interests,
+    completedStepCount: child.learningProfile.completedStepCount,
   };
 }
 
@@ -138,6 +139,24 @@ router.patch("/:childId", requireAuth, async (req, res) => {
   } catch {
     res.status(500).json({
       error: "Failed to update child profile",
+    });
+  }
+});
+
+router.post("/:childId/complete-step", requireAuth, async (req, res) => {
+  const { childId } = req.params;
+
+  try {
+    const updatedChild = await parentRepository.incrementCompletedStepCount(req.parentId, childId);
+
+    if (!updatedChild) {
+      return res.status(404).json({ error: "Child not found" });
+    }
+
+    res.status(200).json(toSafeChildProfile(updatedChild));
+  } catch {
+    res.status(500).json({
+      error: "Failed to record the completed step",
     });
   }
 });
