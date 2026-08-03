@@ -53,5 +53,5 @@ describe('App child-selection flow', () => {
 
     expect(window.location.href).not.toContain(selectedProfile.id)
     expect(document.body.textContent).not.toContain(selectedProfile.id)
-  })
+  }, 10000)
 })

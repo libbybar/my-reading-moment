@@ -33,6 +33,23 @@ describe("readingSessionStore", () => {
     expect(sessionA.askedQuestionIds).toEqual(["test-question-1"]);
   });
 
+  test("stores the given parentId and childId on the session", () => {
+    const session = readingSessionStore.createSession({
+      passage,
+      currentQuestion,
+      askedQuestionIds: ["test-question-1"],
+      parentId: "parent-1",
+      childId: "child-1",
+    });
+
+    expect(session.parentId).toBe("parent-1");
+    expect(session.childId).toBe("child-1");
+
+    const stored = readingSessionStore.getSession(session.sessionId);
+    expect(stored.parentId).toBe("parent-1");
+    expect(stored.childId).toBe("child-1");
+  });
+
   test("stores a clone, not a reference, of the input data", () => {
     const mutablePassage = { ...passage };
     const mutableQuestion = { ...currentQuestion };

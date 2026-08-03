@@ -5,14 +5,13 @@ import { resolveText } from '../constants/resolveText'
 import { fetchChildProfiles, ChildProfileServiceError } from '../services/childProfileService'
 import { getChildAvatar } from '../constants/childAvatars'
 import { useActiveChild } from '../context/useActiveChild'
-import { useLearningPath } from '../context/useLearningPath'
 import AvatarDisplay from '../components/ui/AvatarDisplay'
 import StationNode from '../components/ui/StationNode'
 import Button from '../components/ui/Button'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
 import PageShell from '../components/ui/PageShell'
-import Card from '../components/ui/Card'
 import {
+  ChildHomeContent,
   ChildHomeHeader,
   ChildHomeGreeting,
   StationPath,
@@ -24,7 +23,7 @@ import {
 
 const TOTAL_STATIONS = 12
 
-const STATIONS_PER_ROW = 3
+const STATIONS_PER_ROW = 4
 
 const STATION_WOBBLE_PATTERN_PX = [0, -6, 6]
 
@@ -44,7 +43,6 @@ function chunkIntoRows(items, itemsPerRow) {
 
 function ChildHomePage() {
   const { activeChildId } = useActiveChild()
-  const { progressByChildId } = useLearningPath()
   const navigate = useNavigate()
   const [childProfiles, setChildProfiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -56,7 +54,7 @@ function ChildHomePage() {
       return undefined
     }
 
-    // StrictMode can resolve a stale fetch after the cleanup has run.
+    // StrictMode can resolve a stale fetch after cleanup.
     let ignore = false
 
     fetchChildProfiles()
@@ -73,10 +71,7 @@ function ChildHomePage() {
         }
 
         if (caughtError instanceof ChildProfileServiceError && caughtError.status === 401) {
-          // Set state and let the declarative <Navigate> below handle it,
-          // same as every other redirect in this component — an imperative
-          // navigate() call here would race the "profile not found" fallback
-          // further down, which also fires once childProfiles resolves empty.
+          // Avoid racing the "profile not found" redirect below.
           setNeedsLogin(true)
           return
         }
@@ -105,9 +100,7 @@ function ChildHomePage() {
   if (loading) {
     return (
       <PageShell>
-        <Card>
-          <FeedbackMessage tone="info">{TEXT.childHome.loading}</FeedbackMessage>
-        </Card>
+        <FeedbackMessage tone="info">{TEXT.childHome.loading}</FeedbackMessage>
       </PageShell>
     )
   }
@@ -115,9 +108,7 @@ function ChildHomePage() {
   if (error) {
     return (
       <PageShell>
-        <Card>
-          <FeedbackMessage tone="error">{error}</FeedbackMessage>
-        </Card>
+        <FeedbackMessage tone="error">{error}</FeedbackMessage>
       </PageShell>
     )
   }
@@ -128,7 +119,7 @@ function ChildHomePage() {
     return <Navigate to="/children" replace />
   }
 
-  const completedStepCount = progressByChildId[activeChildId]?.completedStepCount ?? 0
+  const completedStepCount = activeProfile.completedStepCount ?? 0
   const currentActiveStep = completedStepCount + 1
 
   const stations = Array.from({ length: TOTAL_STATIONS }, (_, index) => {
@@ -150,7 +141,7 @@ function ChildHomePage() {
 
   return (
     <PageShell>
-      <Card>
+      <ChildHomeContent>
         <ChildHomeHeader>
           <AvatarDisplay avatar={getChildAvatar(activeProfile)} label={activeProfile.name} />
           <ChildHomeGreeting>
@@ -185,7 +176,7 @@ function ChildHomePage() {
             {TEXT.childHome.switchChildButtonLabel}
           </Button>
         </SwitchChildAction>
-      </Card>
+      </ChildHomeContent>
     </PageShell>
   )
 }

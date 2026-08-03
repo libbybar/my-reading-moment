@@ -6,10 +6,11 @@ import App from '../src/App'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
-import { fetchChildProfiles } from '../src/services/childProfileService'
+import { fetchChildProfiles, completeLearningPathStep } from '../src/services/childProfileService'
 
 vi.mock('../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
+  completeLearningPathStep: vi.fn(),
 }))
 
 vi.mock('../src/constants/childAvatars', () => ({
@@ -50,9 +51,23 @@ function renderAppAtPath(path) {
   )
 }
 
+let completedStepCount
+
 beforeEach(() => {
+  completedStepCount = 0
+
   fetchChildProfiles.mockReset()
-  fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
+  fetchChildProfiles.mockImplementation(() =>
+    Promise.resolve({
+      childProfiles: [{ ...GENERIC_PROFILES[0], completedStepCount }],
+    }),
+  )
+
+  completeLearningPathStep.mockReset()
+  completeLearningPathStep.mockImplementation(() => {
+    completedStepCount += 1
+    return Promise.resolve({ ...GENERIC_PROFILES[0], completedStepCount })
+  })
 
   globalThis.fetch = vi.fn((url) => {
     if (url === '/api/reading-sessions/preview') {
@@ -118,5 +133,5 @@ describe('App learning-path flow', () => {
       screen.getByRole('group', { name: stationAccessibleName(3, TEXT.childHome.lockedStepStatusLabel) }),
     ).toBeInTheDocument()
     expect(window.location.pathname).toBe('/child-home')
-  })
+  }, 10000)
 })

@@ -82,6 +82,126 @@ describe("parentRepository", () => {
     });
   });
 
+  describe("incrementCompletedStepCount", () => {
+    test("increments completedStepCount on the matching child by 1", async () => {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
+      const childId = parent.children[0]._id;
+
+      const updatedChild = await parentRepository.incrementCompletedStepCount(parent._id, childId);
+
+      expect(updatedChild.learningProfile.completedStepCount).toBe(1);
+    });
+
+    test("increments again on a second call, rather than resetting", async () => {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
+      const childId = parent.children[0]._id;
+
+      await parentRepository.incrementCompletedStepCount(parent._id, childId);
+      const updatedChild = await parentRepository.incrementCompletedStepCount(parent._id, childId);
+
+      expect(updatedChild.learningProfile.completedStepCount).toBe(2);
+    });
+
+    test("returns null when the child does not belong to the given parent", async () => {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
+      const otherParent = await parentRepository.create({
+        email: "other@example.com",
+        passwordHash: "hash",
+      });
+      const childId = parent.children[0]._id;
+
+      const result = await parentRepository.incrementCompletedStepCount(otherParent._id, childId);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("addLearningEvent", () => {
+    test("appends the event to the matching child's learningEvents", async () => {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
+      const childId = parent.children[0]._id;
+
+      const updatedChild = await parentRepository.addLearningEvent(parent._id, childId, {
+        type: "answer_attempt",
+        source: "system",
+        payload: { questionId: "q1", isCorrect: true },
+      });
+
+      expect(updatedChild.learningEvents).toHaveLength(1);
+      expect(updatedChild.learningEvents[0]).toMatchObject({
+        type: "answer_attempt",
+        source: "system",
+        payload: { questionId: "q1", isCorrect: true },
+      });
+    });
+
+    test("returns null when the child does not belong to the given parent", async () => {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+          },
+        ],
+      });
+      const otherParent = await parentRepository.create({
+        email: "other@example.com",
+        passwordHash: "hash",
+      });
+      const childId = parent.children[0]._id;
+
+      const result = await parentRepository.addLearningEvent(otherParent._id, childId, {
+        type: "answer_attempt",
+        source: "system",
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe("create", () => {
     test("persists a parent with a normalized (trimmed, lowercased) email", async () => {
       const parent = await parentRepository.create({

@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 const sessions = new Map();
 
-function createSession({ passage, currentQuestion, askedQuestionIds }) {
+function createSession({ passage, currentQuestion, askedQuestionIds, parentId, childId }) {
   const sessionId = crypto.randomUUID();
 
   const session = {
@@ -12,6 +12,9 @@ function createSession({ passage, currentQuestion, askedQuestionIds }) {
     passage: structuredClone(passage),
     currentQuestion: structuredClone(currentQuestion),
     askedQuestionIds: structuredClone(askedQuestionIds),
+    // Trusted because sessions are created only by authenticated /preview.
+    parentId,
+    childId,
   };
 
   sessions.set(sessionId, session);

@@ -1,11 +1,20 @@
 import styled from 'styled-components'
 
+// Bounded width gives the path room without sprawling on wide screens.
+export const ChildHomeContent = styled.div`
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`
+
 export const ChildHomeHeader = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 `
 
 export const ChildHomeGreeting = styled.h1`
@@ -21,7 +30,7 @@ export const StationPath = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 `
 
 export const StationRow = styled.div`
@@ -30,9 +39,9 @@ export const StationRow = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 28px;
   width: fit-content;
-  margin-bottom: 20px;
+  margin-bottom: 36px;
 
   &::before {
     content: '';
@@ -47,13 +56,13 @@ export const StationRow = styled.div`
   }
 `
 
-// Offsets must match half the station wrapper width.
+// Bridges StationRow's vertical gap; side offsets align with station centers.
 export const StationRowConnector = styled.div`
   position: absolute;
-  bottom: -20px;
+  bottom: -36px;
   ${(props) => (props.$side === 'left' ? 'left: 32px;' : 'right: 32px;')}
   width: 0;
-  height: 20px;
+  height: 36px;
   border-left: 4px dotted ${(props) => props.theme.colors.border};
   z-index: 0;
 

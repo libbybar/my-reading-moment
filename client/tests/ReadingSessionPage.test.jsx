@@ -5,24 +5,18 @@ import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from '../src/pages/ReadingSessionPage'
 import { ActiveChildProvider } from '../src/context/ActiveChildProvider'
-import { LearningPathProvider } from '../src/context/LearningPathProvider'
-import { useLearningPath } from '../src/context/useLearningPath'
+import { completeLearningPathStep } from '../src/services/childProfileService'
 import { TEXT } from '../src/constants/text'
 import { resolveText } from '../src/constants/resolveText'
 import { theme } from '../src/styles/theme'
 
+vi.mock('../src/services/childProfileService', () => ({
+  completeLearningPathStep: vi.fn(),
+}))
+
 const LEGACY_QUESTION_TEXT = 'LEGACY TEXT — MUST NOT BE USED'
 
 const ACTIVE_CHILD_ID = 'mock-active-child-id'
-
-function ProgressProbe() {
-  const { progressByChildId } = useLearningPath()
-  return <div data-testid="progress-probe">{JSON.stringify(progressByChildId)}</div>
-}
-
-function readProgressProbe() {
-  return JSON.parse(screen.getByTestId('progress-probe').textContent)
-}
 
 function buildExercise(grammaticalGender) {
   return {
@@ -46,25 +40,19 @@ const QUESTION_1 = mockExercise.question
 const QUESTION_2 = { id: 'test-question-2', passageId: 'test-passage-1', prompt: 'שאלה חדשה 2?' }
 const QUESTION_3 = { id: 'test-question-3', passageId: 'test-passage-1', prompt: 'שאלה חדשה 3?' }
 
-function renderPage({
-  initialActiveChildId = ACTIVE_CHILD_ID,
-  initialProgressByChildId = {},
-} = {}) {
+function renderPage({ initialActiveChildId = ACTIVE_CHILD_ID } = {}) {
   // StrictMode keeps stale-effect behavior aligned with the real app.
   return render(
     <StrictMode>
       <ThemeProvider theme={theme}>
         <ActiveChildProvider initialActiveChildId={initialActiveChildId}>
-          <LearningPathProvider initialProgressByChildId={initialProgressByChildId}>
-            <MemoryRouter initialEntries={['/']}>
-              <Routes>
-                <Route path="/" element={<ReadingSessionPage />} />
-                <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
-                <Route path="/child-home" element={<div>CHILD_HOME_SENTINEL</div>} />
-              </Routes>
-            </MemoryRouter>
-            <ProgressProbe />
-          </LearningPathProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="/" element={<ReadingSessionPage />} />
+              <Route path="/children" element={<div>CHILD_SELECTION_SENTINEL</div>} />
+              <Route path="/child-home" element={<div>CHILD_HOME_SENTINEL</div>} />
+            </Routes>
+          </MemoryRouter>
         </ActiveChildProvider>
       </ThemeProvider>
     </StrictMode>,
@@ -190,6 +178,10 @@ async function renderInRetryState(exercise, nextQuestion) {
 
 beforeEach(() => {
   globalThis.fetch = vi.fn()
+  // vi.restoreAllMocks() (afterEach) only restores spies; a plain vi.fn()
+  // from a vi.mock factory keeps its call history unless cleared here.
+  completeLearningPathStep.mockReset()
+  completeLearningPathStep.mockResolvedValue({})
 })
 
 afterEach(() => {
@@ -408,7 +400,8 @@ describe('ReadingSessionPage', () => {
     fireEvent.click(getReturnToPathButton())
 
     expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
-    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toEqual({ completedStepCount: 1 })
+    expect(completeLearningPathStep).toHaveBeenCalledWith(ACTIVE_CHILD_ID)
+    expect(completeLearningPathStep).toHaveBeenCalledTimes(1)
   })
 
   it('uses a synchronous guard so a second return-to-path click cannot advance progress twice', async () => {
@@ -428,7 +421,7 @@ describe('ReadingSessionPage', () => {
 
     await screen.findByText('CHILD_HOME_SENTINEL')
 
-    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toEqual({ completedStepCount: 1 })
+    expect(completeLearningPathStep).toHaveBeenCalledTimes(1)
   })
 
   it('displays the resolved retry-feedback text on a retry result, with no input, button, or further requests', async () => {
@@ -870,7 +863,7 @@ describe('ReadingSessionPage', () => {
     fireEvent.click(getReturnToPathButton())
 
     expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
-    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toBeUndefined()
+    expect(completeLearningPathStep).not.toHaveBeenCalled()
   })
 
   it('uses the same synchronous guard so a second return-to-path click from the attempt limit cannot advance progress', async () => {
@@ -884,6 +877,6 @@ describe('ReadingSessionPage', () => {
 
     await screen.findByText('CHILD_HOME_SENTINEL')
 
-    expect(readProgressProbe()[ACTIVE_CHILD_ID]).toBeUndefined()
+    expect(completeLearningPathStep).not.toHaveBeenCalled()
   })
 })

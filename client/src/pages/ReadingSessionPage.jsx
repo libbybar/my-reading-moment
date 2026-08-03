@@ -11,9 +11,10 @@ import {
   submitAnswer,
   fetchNextQuestion,
 } from '../services/readingSessionService';
+import { completeLearningPathStep } from '../services/childProfileService';
 import { useActiveChild } from '../context/useActiveChild';
-import { useLearningPath } from '../context/useLearningPath';
 import {
+  ExerciseCard,
   ExerciseContent,
   ExerciseTitle,
   SectionHeading,
@@ -73,7 +74,6 @@ const MAX_INCORRECT_ATTEMPTS = 3;
 
 function ReadingSessionPage() {
   const { activeChildId } = useActiveChild();
-  const { completeNextLearningPathStep } = useLearningPath();
   const navigate = useNavigate();
   const [exercise, setExercise] = useState(null);
   const [error, setError] = useState(null);
@@ -93,10 +93,7 @@ function ReadingSessionPage() {
       return undefined;
     }
 
-    // StrictMode may run this effect twice in development.
-    // `ignore` prevents stale state updates, but it does not prevent duplicate
-    // requests. Because `/preview` creates a server-side session,
-    // `exerciseRequestRef` reuses the request for the same active child.
+    // Reuse the StrictMode duplicate request because /preview creates a session.
     let ignore = false;
 
     if (exerciseRequestRef.current?.childId !== activeChildId) {
@@ -130,8 +127,7 @@ function ReadingSessionPage() {
   }, [activeChildId]);
 
   const handleSubmitAnswer = () => {
-    // questionStatus guards re-renders; isSubmittingRef guards the same tick,
-    // before React has had a chance to commit that state update.
+    // Ref guard covers the tick before React commits questionStatus.
     if (questionStatus === 'checking' || isSubmittingRef.current) {
       return;
     }
@@ -226,7 +222,7 @@ function ReadingSessionPage() {
   };
 
   const handleReturnToPath = (shouldAdvanceProgress) => {
-    // navigate() does not unmount synchronously; this latch prevents duplicate returns.
+    // navigate() does not unmount synchronously.
     if (hasReturnedToPathRef.current) {
       return;
     }
@@ -234,11 +230,14 @@ function ReadingSessionPage() {
     hasReturnedToPathRef.current = true;
     setIsReturningToPath(true);
 
-    if (shouldAdvanceProgress) {
-      completeNextLearningPathStep(activeChildId);
-    }
+    // Progress writes are best-effort; returning to the path must still work.
+    const advance = shouldAdvanceProgress
+      ? completeLearningPathStep(activeChildId).catch(() => {})
+      : Promise.resolve();
 
-    navigate('/child-home');
+    advance.finally(() => {
+      navigate('/child-home');
+    });
   };
 
   if (!activeChildId) {
@@ -267,7 +266,7 @@ function ReadingSessionPage() {
 
   return (
     <PageShell>
-      <Card>
+      <ExerciseCard>
         <ExerciseContent>
           <ExerciseTitle>{exercise.title}</ExerciseTitle>
 
@@ -308,7 +307,7 @@ function ReadingSessionPage() {
             )}
           </QuestionsCard>
         </ExerciseContent>
-      </Card>
+      </ExerciseCard>
     </PageShell>
   );
 }
