@@ -1,0 +1,15 @@
+services:
+  server:
+    build: ./server
+    env_file:
+      - server/.env
+    environment:
+      CLIENT_ORIGIN: http://localhost:8080
+      PORT: 7000
+
+  client:
+    build: ./client
+    ports:
+      - "8080:80"
+    depends_on:
+      - server

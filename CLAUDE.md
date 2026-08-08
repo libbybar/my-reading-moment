@@ -12,13 +12,11 @@ If the answer is not accepted, the child receives supportive feedback and may re
 
 A possible future direction is expanding the flow to approximately three questions from different angles per passage — not implemented now.
 
-`client/` is Vite + React + styled-components; `server/` is Express (CommonJS).
+`client/` is Vite + React + styled-components; `server/` is Express, ES modules (`"type": "module"`).
 
 ## Planned direction
 
-- Persistent storage: MongoDB, parent accounts with authentication, and child profiles owned by a parent account — replacing the current mocked/in-memory data entirely.
 - Further logging/security hardening, if anything from "Debug logging" below is still incomplete.
-- Docker.
 - `LICENSES_ALL` (dependency license auditing).
 - CI release/tag deliverables.
 - Optional LLM latency optimizations: caching, pre-generation, or a combined initial passage+question generation call (a deliberate trade-off in the current LLM provider architecture — see "LLM provider architecture" below).
@@ -91,15 +89,27 @@ any request failure → error
 
 **`fetchReadingExercise` (`/preview`) is deduplicated per mount, not just per response.** A plain `ignore` flag (the standard fetch-in-effect pattern used elsewhere) only discards a *stale response* — it does not stop a stale *request* from being sent, and `/preview` is not idempotent (it creates a server-side session). `ReadingSessionPage` caches the in-flight/settled request in a ref keyed by `activeChildId`, so `fetchReadingExercise` is only ever called once per child under React StrictMode's double-invoked mount effect — each effect instance still attaches its own `ignore`-gated handler to the shared promise. Without this, StrictMode's dev-only double mount would silently create an orphan session per page load.
 
-**Learning-path progress is temporary, in-memory, and keyed by child id.** `LearningPathProvider`/`useLearningPath` (`client/src/context/`, mirroring `ActiveChildProvider`'s three-file split — same `react-refresh/only-export-components` reason) hold `progressByChildId: { [childId]: { completedStepCount } }`, mounted once in `App.jsx` alongside `ActiveChildProvider` so it survives navigation. Keyed per child, not a single global counter, so switching the active child mid-session can't leak one child's progress onto another's stations. It is explicitly not persisted — lost on reload — and not a database "session" concept.
+**Learning-path progress is persisted server-side, keyed by child, not client-only.** `learningProfile.completedStepCount` (a Mongo field that previously sat unused) is incremented via a focused, ownership-scoped repository mutation (`parentRepository.incrementCompletedStepCount`, an atomic `$inc`, not a read-modify-write) behind `POST /api/child-profiles/:childId/complete-step`. `ChildHomePage` reads it straight from the fetched child profile on every mount. The former `LearningPathProvider`/`useLearningPath`/`learningPathContext` (a three-file split mirroring `ActiveChildProvider`, same `react-refresh/only-export-components` reason) have been removed entirely — a client-only copy of the same number was a source of drift, not a real need, once a real parent/child account existed to persist it against.
+
+**Every evaluated answer is recorded server-side, correct or not.** `/answers` (`readingSessionRoutes.js`) appends an `answer_attempt` learningEvent (`{questionId, isCorrect}`, plus `source: "system"` and a timestamp) to the child's `learningEvents` array via `parentRepository.addLearningEvent` — recorded from the server's own evaluation result, never trusting the client to report its own outcome. This write is best-effort: wrapped in its own `try`/`catch` so a failure never affects the evaluation response the child is already waiting on (same philosophy as debug logging, below, but this is real persisted product data, not a debug aid).
 
 **Station status (`completed`/`active`/`locked`) is derived, not stored.** `ChildHomePage` computes `currentActiveStep = completedStepCount + 1` and classifies each of the fixed 3 stations from that one number (`< currentActiveStep` → completed, `===` → active, `>` → locked) — there is no separately-stored "which step is active" field. This makes "exactly one active station" an invariant of the arithmetic rather than something that could desync across two fields.
 
-**Only a correct answer ever advances learning-path progress.** `ReadingSessionPage`'s `handleReturnToPath(shouldAdvanceProgress)` is the single call site for `completeNextLearningPathStep` (`useLearningPath`) — called with `true` only from the `correct` state's return-to-path action, `false` from the attempt-limit state's. Wrong answers, replacement questions, and request errors never touch progress. Both call sites share one `hasReturnedToPathRef` guard against a double-click firing `navigate()` (and, for the correct path, the progress update) twice, since `navigate()` doesn't unmount the component synchronously.
+**Only a correct answer ever advances learning-path progress.** `ReadingSessionPage`'s `handleReturnToPath(shouldAdvanceProgress)` is the single call site for `completeLearningPathStep` (`childProfileService.js`, `POST /api/child-profiles/:childId/complete-step`) — called with `true` only from the `correct` state's return-to-path action, `false` from the attempt-limit state's. Wrong answers, replacement questions, and request errors never touch progress. The call is explicit and client-triggered on the deliberate "return to path" action, not derived automatically from a correct `/answers` evaluation — matches the existing checkpoint semantics (correct is a checkpoint, not completion) rather than tamper-proofing, since this isn't an adversarial multi-tenant context. A failed progress write doesn't block navigation home (`.catch(() => {})` — best-effort, same spirit as the server's own learning-event recording above). Both call sites share one `hasReturnedToPathRef` guard against a double-click firing `navigate()` (and, for the correct path, the progress update) twice, since `navigate()` doesn't unmount the component synchronously.
 
-**After 3 incorrect attempts, the child returns to the path without advancing progress — no further retry loop.** `MAX_INCORRECT_ATTEMPTS = 3` in `ReadingSessionPage`; `incorrectAttemptCount` persists across "another question" replacements within one visit (it has to, to ever reach the limit) and is never reset — once `attemptLimitReached` is reached, returning to `/child-home` is the only action, so the same step simply stays active and the child can start it again from there. The message shown is a single gentle, gender-neutral string (not a `{female,male}` variant, since it avoids conjugated verbs) that never uses "wrong" or "failed" language — the child is not told this was tracked as anything. This is a deliberate seam for a later feature (recording the attempt server-side and adjusting the next generated passage's difficulty), explicitly not implemented now.
+**After 3 incorrect attempts, the child returns to the path without advancing progress — no further retry loop.** `MAX_INCORRECT_ATTEMPTS = 3` in `ReadingSessionPage`; `incorrectAttemptCount` persists across "another question" replacements within one visit (it has to, to ever reach the limit) and is never reset — once `attemptLimitReached` is reached, returning to `/child-home` is the only action, so the same step simply stays active and the child can start it again from there. The message shown is a single gentle, gender-neutral string (not a `{female,male}` variant, since it avoids conjugated verbs) that never uses "wrong" or "failed" language — the child is not told this was tracked as anything. Per-answer history is now recorded server-side (see "Every evaluated answer is recorded server-side" above), but nothing yet reads it back to adjust difficulty or treat an attempt-limit event any differently from an ordinary wrong answer — that adaptive-difficulty idea is still not implemented.
 
 **`StationNode` has three statuses, not two.** `completed` reuses the same numbered-circle pattern as `active`/`locked` (per "Stations are numbered, not iconified" above) — only the circle's color changes (`theme.colors.success`), keeping that established convention instead of introducing icons. Like `locked`, it renders as a non-interactive `role="group"` (composed accessible label via `stepLabelPrefix`/`completedStepStatusLabel`), since there's no distinct per-station content to revisit yet.
+
+## Authentication & ownership
+
+Parent accounts are real (MongoDB-backed via `parentRepository.js`), not mocked — registration/login issue a JWT stored in an httpOnly cookie (`tokenService.js`: `generateToken`/`verifyToken`, `AUTH_COOKIE_NAME`), never returned in a response body, so it can't end up in browser history, logs, or client-side JS.
+
+**`requireAuth` is deliberately stateless.** `authMiddleware.js` only verifies the token and attaches `req.parentId` — it never touches the database. Loading the actual parent document is the route's job (via `parentRepository`), keeping "who is this" (middleware) separate from "what do they have" (route). A missing, expired, malformed, or mis-signed token all produce the same generic 401 — callers must never be able to distinguish which.
+
+**Every child lookup is ownership-scoped, never a bare id lookup.** `parentRepository.updateChild`/`incrementCompletedStepCount`/`addLearningEvent` all filter by the compound `{ _id: parentId, "children._id": childId }` — a childId belonging to another parent is indistinguishable from one that doesn't exist at all (same 404, same error shape). `/preview` (`readingSessionRoutes.js`) applies the same principle by loading the parent via `req.parentId` first and looking up the child as a subdocument, never by querying children directly.
+
+`POST /api/reading-sessions/preview` and all of `/api/child-profiles/*` require `requireAuth`. `/answers` and `/next-question` don't — they operate purely on an opaque `sessionId` that was already tied to a `parentId`/`childId` at session-creation time (see the session store note above), not on anything the caller could forge ownership of.
 
 ## LLM provider architecture
 
@@ -122,6 +132,20 @@ Gemini's `generatePassage`/`generateQuestion` are two independent API calls, not
 - **Best-effort.** The file write is wrapped in `try/catch` — a failure (missing dir, disk error) never breaks the request it's logging; it only prints one short `console.warn`, with the filesystem error's own message but never the log entry itself.
 - **`requestId` correlates route and LLM logs automatically**, via `runWithRequestId` (Node's `AsyncLocalStorage`) — a route handler starts it once per request, and every `writeDebugLog` call made anywhere during that request (including deep inside `geminiClient.js`) picks up the same id, with no need to thread it through `generatePassage`/`generateQuestion`/`evaluateAnswer`'s own parameters. Keeping it out of the provider contract is deliberate — request correlation is a debugging concern, not something the contract should know about.
 - **Never logged:** prompt text, child answers, generated passage/question/`expectedMeaning` content, or any secret (API keys, etc). Entries carry only metadata — durations, labels, lengths (`textLength`/`promptLength`), `readingLevel`, the Gemini `model` name, and (on error) the error's own name/message/status.
+
+## Docker
+
+A local, production-style build/runtime path exists alongside — not replacing — the npm-based dev workflow (`docker-compose.yml`, `client/Dockerfile`, `client/nginx.conf`, `server/Dockerfile`). Only `client` and `server` are containerized; MongoDB stays external (Atlas), matching existing local dev.
+
+**nginx reverse-proxies `/api` to the server, rather than the client calling the server's exposed port directly.** The client already calls relative `/api/...` paths everywhere (mirroring the existing Vite dev-server proxy) — same-origin from the browser's perspective, which sidesteps `SameSite=Lax` cookie/CORS complications a direct cross-port call would introduce, at the cost of zero client changes.
+
+**nginx resolves the `server` upstream at request time, not at startup.** A bare `proxy_pass http://server:7000` fails nginx's startup entirely if `server` isn't resolvable yet (container start order isn't guaranteed) — `resolver 127.0.0.11 valid=10s;` (Docker's embedded DNS) plus a `set $backend ...; proxy_pass $backend;` indirection defers resolution to request time, so nginx always starts, and unreachable API calls degrade to a `502` instead of nginx never coming up at all.
+
+**The server's port is not published to the host.** `docker-compose.yml` gives `server` no `ports:` — it's reachable only from `client` over the internal Compose network, matching the reverse-proxy decision above (nothing outside the container network is meant to call it directly).
+
+**`NODE_ENV` is deliberately left unset in the server container.** The auth cookie's `secure: NODE_ENV === "production"` flag (`authRoutes.js`) would silently stop the browser from storing the cookie at all over plain HTTP — this Docker setup has no TLS, so setting `NODE_ENV=production` here would break login. This is a known limitation of the current local-only setup, not a decision to revisit lightly.
+
+**`server/.env` is loaded via Compose `env_file`, never copied into the image** (`server/.dockerignore` excludes it) — secrets stay out of the image layers. `CLIENT_ORIGIN` is the one exception: `docker-compose.yml` overrides it to `http://localhost:8080` (the nginx-exposed origin) for the Docker path only, layered on top of whatever `server/.env` has (which keeps `http://localhost:5173` for local `npm run dev`, unmodified).
 
 ## UI text rule
 
@@ -149,10 +173,10 @@ All UI text must be stored under stable semantic keys in the localized text sour
 
 ## Component conventions
 
-- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `Card`, `PageShell`, `FeedbackMessage`, `AvatarButton`, `AvatarDisplay`, `StationNode`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`. (`SelectField`/`SelectFieldStyle.js` were removed once `ReadingSessionPage` stopped needing its own child-selection dropdown — don't re-add without a real need.)
-- `pages/*` — page-level composition (`ReadingSessionPage`, `QuestionStep`, `ChildSelectionPage`, `ChildHomePage`) — these *do* know about the domain, own state, and call services, but delegate all HTTP calls to `services/readingSessionService.js`.
+- `components/ui/*` — fully dumb, reusable, controlled components (`Button`, `TextField`, `SelectField`, `Card`, `PageShell`, `FeedbackMessage`, `AvatarButton`, `AvatarDisplay`, `StationNode`). No app/session knowledge, no text-key resolution, no hardcoded text. Matching styles live in `styles/components/*Style.js`. (`SelectField`/`SelectFieldStyle.js` were removed once, then re-added for the add/edit-child form's gender/reading-level fields — don't remove again without checking every current consumer.)
+- `pages/*` — page-level composition (`ReadingSessionPage`, `QuestionStep`, `ChildSelectionPage`, `ChildHomePage`, `LoginPage`, `RegisterPage`) — these *do* know about the domain, own state, and call services, but delegate all HTTP calls to `services/*Service.js`.
 - `styles/<PageName>Style.js` — page-specific styled-components (not reused elsewhere).
-- `context/*` — application-level state that must survive route navigation (currently `ActiveChildProvider`/`useActiveChild` and `LearningPathProvider`/`useLearningPath`), as opposed to page-local `useState`.
+- `context/*` — application-level state that must survive route navigation (currently just `ActiveChildProvider`/`useActiveChild`), as opposed to page-local `useState`. (`LearningPathProvider`/`useLearningPath` used to live here too — removed once learning-path progress moved server-side; see "Learning-path progress is persisted server-side" above.)
 
 ## Testing conventions
 
@@ -172,7 +196,7 @@ Do not treat review suggestions as permission to make unrelated refactors or bro
 Active branch:
 
 ```text
-feature/real-llm-provider
+feature/docker-support
 ```
 
 Create commits only when a step is:
