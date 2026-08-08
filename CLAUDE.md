@@ -47,7 +47,7 @@ There is no default grammatical gender. Missing or unsupported grammatical gende
 
 **`"exhausted"` is a mock artifact, not a product state.** The current mock has a finite seeded question list per passage and can run out; a real LLM wouldn't. It's handled as a graceful fallback (`{question: null}` from `/next-question`), explicitly *not* one of the UI's named states. Session/question-count limits (a real product concept) will be designed separately later — don't conflate the two.
 
-**Provider contract is intentionally minimal and mock-agnostic.** `generateQuestion({passage, askedQuestionIds})` only requires `passage.id/text/readingLevel` (what a real generator actually needs) — the mock's own lookup into `mockPassages` by `id` is an internal implementation detail, asserted nowhere in the shared contract tests (`tests/support/llmProviderContract.js`). That shared suite now runs, unchanged, against both `mockProvider.js` and `geminiProvider.js` (see `mockProvider.test.js`/`geminiProvider.test.js`) — the re-runnability held up in practice, not just in theory. Routes never branch on mock-vs-real — proven by tests that stub the provider module and check the route only forwards its output.
+**Provider contract is intentionally minimal and mock-agnostic.** `generateQuestion({passage, askedQuestionIds})` only requires `passage.id/text/readingLevel` (what a real generator actually needs) — the mock's own lookup into `mockPassages` by `id` is an internal implementation detail, asserted nowhere in the shared contract tests (`server/tests/support/llmProviderContract.js`). That shared suite now runs, unchanged, against both `mockProvider.js` and `geminiProvider.js` (see `server/tests/providers/mockProvider.test.js`/`server/tests/providers/geminiProvider.test.js`) — the re-runnability held up in practice, not just in theory. Routes never branch on mock-vs-real — proven by tests that stub the provider module and check the route only forwards its output.
 
 **Session store stays minimal on purpose.** Only `createSession`, `getSession`, `replaceCurrentQuestion`, and a test-only `clearSessions`. No generic `updateSession(id, patch)` — that would permit arbitrary mutations before the retry/next-question transition rules are even defined. Add focused, named mutations only, as new flows need them.
 
@@ -156,7 +156,7 @@ All UI text must be stored under stable semantic keys in the localized text sour
 
 ## Testing conventions
 
-- Server: Jest, globals not imported (`describe`/`test`/`expect` are ambient). `tests/support/llmProviderContract.js` is a shared, parameterized suite — not a test file itself (no `.test.js` suffix) — invoked by both real and mocked provider test files.
+- Server: Jest, globals not imported (`describe`/`test`/`expect` are ambient). `server/tests/support/llmProviderContract.js` is a shared, parameterized suite — not a test file itself (no `.test.js` suffix) — invoked by both real and mocked provider test files.
 - Client: Vitest, everything explicitly imported (`describe`/`it`/`expect`/`vi` from `'vitest'`) since `globals: true` isn't set. Always `afterEach(cleanup)` in component tests (state leaks across tests otherwise).
 - Every provider-facing route has two test files: one exercising the real mock end-to-end, one mocking the provider module to test error handling and prove the route doesn't branch on mock-vs-real.
 - `readingSessionService.js` errors are a structured `ReadingSessionServiceError` (`status`, `body`, `message`) — assert on shape, not just `.toThrow()`.
