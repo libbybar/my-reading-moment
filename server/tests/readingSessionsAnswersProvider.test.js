@@ -25,6 +25,14 @@ function seedSession() {
   });
 }
 
+const answerFailureBody = { error: "Failed to evaluate the answer" };
+
+function expectAnswerFailure(response) {
+  expect(response.statusCode).toBe(500);
+  expect(response.body).toEqual(answerFailureBody);
+  expect(JSON.stringify(response.body)).not.toContain("provider exploded");
+}
+
 describe("POST /api/reading-sessions/answers (provider integration)", () => {
   afterEach(() => {
     jest.resetAllMocks();
@@ -40,8 +48,7 @@ describe("POST /api/reading-sessions/answers (provider integration)", () => {
       answerText: "some answer",
     });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectAnswerFailure(response);
   });
 
   test("builds its response purely from whatever the provider returns, with no mock/real branching", async () => {
@@ -90,8 +97,7 @@ describe("POST /api/reading-sessions/answers (provider integration)", () => {
         answerText: "some answer",
       });
 
-      expect(response.statusCode).toBe(500);
-      expect(response.body).toEqual({ error: expect.any(String) });
+      expectAnswerFailure(response);
     },
   );
 });

@@ -19,6 +19,11 @@ function buildTestApp() {
   return app;
 }
 
+function expectAuthenticationRequired(response) {
+  expect(response.statusCode).toBe(401);
+  expect(response.body).toEqual({ error: "Authentication required" });
+}
+
 describe("authMiddleware.requireAuth", () => {
   beforeAll(() => {
     process.env.JWT_SECRET = "test-secret";
@@ -31,37 +36,28 @@ describe("authMiddleware.requireAuth", () => {
   test("returns 401 when there is no cookie", async () => {
     const response = await request(buildTestApp()).get("/protected");
 
-    expect(response.statusCode).toBe(401);
-    expect(response.body).toEqual({ error: "Authentication required" });
+    expectAuthenticationRequired(response);
   });
 
-  test("returns 401 for a malformed token", async () => {
-    const response = await request(buildTestApp())
-      .get("/protected")
-      .set("Cookie", [`${AUTH_COOKIE_NAME}=not-a-real-token`]);
-
-    expect(response.statusCode).toBe(401);
-  });
-
-  test("returns 401 for a token signed with a different secret", async () => {
-    const token = jwt.sign({ parentId: "someone" }, "a-different-secret");
-
-    const response = await request(buildTestApp())
-      .get("/protected")
-      .set("Cookie", [`${AUTH_COOKIE_NAME}=${token}`]);
-
-    expect(response.statusCode).toBe(401);
-  });
-
-  test("returns 401 for an expired token", async () => {
-    const token = jwt.sign({ parentId: "someone" }, process.env.JWT_SECRET, { expiresIn: "1ms" });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  test.each([
+    ["a malformed token", () => "not-a-real-token"],
+    ["a token signed with a different secret", () => jwt.sign({ parentId: "someone" }, "a-different-secret")],
+    [
+      "an expired token",
+      () =>
+        jwt.sign(
+          { parentId: "someone", exp: Math.floor(Date.now() / 1000) - 60 },
+          process.env.JWT_SECRET,
+        ),
+    ],
+  ])("returns the same generic 401 response for %s", async (_label, buildToken) => {
+    const token = buildToken();
 
     const response = await request(buildTestApp())
       .get("/protected")
       .set("Cookie", [`${AUTH_COOKIE_NAME}=${token}`]);
 
-    expect(response.statusCode).toBe(401);
+    expectAuthenticationRequired(response);
   });
 
   test("calls next and attaches parentId for a valid token", async () => {

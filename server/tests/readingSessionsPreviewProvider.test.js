@@ -11,6 +11,7 @@ jest.unstable_mockModule("../src/services/llmProvider/index.js", () => ({
 }));
 
 const { default: app } = await import("../src/app.js");
+const { default: readingSessionStore } = await import("../src/services/readingSessionStore.js");
 const testDb = await import("./support/testDb.js");
 const { createAuthenticatedParentWithChild } = await import("./support/testAuth.js");
 
@@ -23,6 +24,8 @@ const validPassage = {
   readingLevel: "beginner",
 };
 
+const previewFailureBody = { error: "Failed to generate a reading question" };
+
 describe("POST /api/reading-sessions/preview (provider integration)", () => {
   beforeAll(async () => {
     process.env.JWT_SECRET = "test-secret";
@@ -31,6 +34,8 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
 
   afterEach(async () => {
     jest.resetAllMocks();
+    jest.restoreAllMocks();
+    readingSessionStore.clearSessions();
     await testDb.clearDatabase();
   });
 
@@ -48,6 +53,13 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
         interests: ["חלל", "רובוטים"],
       },
     });
+  }
+
+  function expectPreviewFailure(response) {
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual(previewFailureBody);
+    expect(response.body).not.toHaveProperty("sessionId");
+    expect(JSON.stringify(response.body)).not.toContain("provider exploded");
   }
 
   test("calls generatePassage with the selected child's readingLevel and interests", async () => {
@@ -68,6 +80,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
 
   test("returns an error response when generatePassage rejects", async () => {
     const { childId, cookie } = await createChildAndCookie();
+    const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
     llmProvider.generatePassage.mockRejectedValue(new Error("provider exploded"));
 
     const response = await request(app)
@@ -75,9 +88,9 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
       .set("Cookie", [cookie])
       .send({ childId });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectPreviewFailure(response);
     expect(llmProvider.generateQuestion).not.toHaveBeenCalled();
+    expect(createSessionSpy).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -90,6 +103,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
     "returns an error response for %s, without calling generateQuestion",
     async (_label, malformedPassage) => {
       const { childId, cookie } = await createChildAndCookie();
+      const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
       llmProvider.generatePassage.mockResolvedValue(malformedPassage);
 
       const response = await request(app)
@@ -97,14 +111,15 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
         .set("Cookie", [cookie])
         .send({ childId });
 
-      expect(response.statusCode).toBe(500);
-      expect(response.body).toEqual({ error: expect.any(String) });
+      expectPreviewFailure(response);
       expect(llmProvider.generateQuestion).not.toHaveBeenCalled();
+      expect(createSessionSpy).not.toHaveBeenCalled();
     },
   );
 
   test("returns an error response when the provider rejects", async () => {
     const { childId, cookie } = await createChildAndCookie();
+    const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockRejectedValue(new Error("provider exploded"));
 
@@ -113,9 +128,49 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
       .set("Cookie", [cookie])
       .send({ childId });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectPreviewFailure(response);
+    expect(createSessionSpy).not.toHaveBeenCalled();
   });
+
+  test.each([
+    [
+      "a mismatched passageId",
+      {
+        id: "stub-question",
+        passageId: "some-other-passage",
+        prompt: "Stub prompt?",
+        expectedMeaning: "Stub meaning",
+      },
+    ],
+    [
+      "a missing expectedMeaning",
+      {
+        id: "stub-question",
+        passageId: "stub-passage",
+        prompt: "Stub prompt?",
+      },
+    ],
+    ["a question that is not an object", "not-a-question"],
+  ])(
+    "returns an error response for %s, without creating a session",
+    async (_label, malformedQuestion) => {
+      const { childId, cookie } = await createChildAndCookie();
+      const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
+      llmProvider.generatePassage.mockResolvedValue(validPassage);
+      llmProvider.generateQuestion.mockResolvedValue({
+        status: "ok",
+        question: malformedQuestion,
+      });
+
+      const response = await request(app)
+        .post("/api/reading-sessions/preview")
+        .set("Cookie", [cookie])
+        .send({ childId });
+
+      expectPreviewFailure(response);
+      expect(createSessionSpy).not.toHaveBeenCalled();
+    },
+  );
 
   test("builds its response purely from whatever the provider returns, with no mock/real branching", async () => {
     const { childId, cookie } = await createChildAndCookie();
@@ -166,6 +221,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
 
   test("returns a stable error response when the provider returns an unexpected status", async () => {
     const { childId, cookie } = await createChildAndCookie();
+    const createSessionSpy = jest.spyOn(readingSessionStore, "createSession");
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({ status: "unexpected-status" });
 
@@ -174,7 +230,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
       .set("Cookie", [cookie])
       .send({ childId });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectPreviewFailure(response);
+    expect(createSessionSpy).not.toHaveBeenCalled();
   });
 });

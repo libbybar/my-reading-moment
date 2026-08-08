@@ -27,10 +27,11 @@ describe("tokenService", () => {
     expect(() => verifyToken(tampered)).toThrow();
   });
 
-  test("verifyToken throws for an expired token", async () => {
-    const token = jwt.sign({ parentId: "x" }, process.env.JWT_SECRET, { expiresIn: "1ms" });
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  test("verifyToken throws for an expired token", () => {
+    const token = jwt.sign(
+      { parentId: "x", exp: Math.floor(Date.now() / 1000) - 60 },
+      process.env.JWT_SECRET,
+    );
 
     expect(() => verifyToken(token)).toThrow();
   });
