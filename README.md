@@ -107,7 +107,7 @@ http://localhost:7000
 
 An alternative, production-style way to build and run the whole application in containers. This does not replace the npm-based development workflow above — use it when you want to build/run the app the way it would actually be deployed, not for day-to-day development.
 
-Prerequisites: Docker Engine with the Compose plugin, and `server/.env` already created (same as "Run the Server" above) with a real `MONGODB_URI` — Compose does not run its own MongoDB container, it connects to the same MongoDB instance (e.g. Atlas) as local development.
+Prerequisites: Docker Engine with the Compose plugin, and `server/.env` already created (same as "Run the Server" above) with a real `MONGODB_URI`. Compose does not run its own MongoDB container — `MONGODB_URI` must point to your existing Atlas (or other remote) MongoDB instance, the same one used by local development. A `localhost`-based `MONGODB_URI` will not work here: inside the server container, `localhost` refers to the container itself, not your machine. Running MongoDB locally in a container is intentionally out of scope for this project.
 
 ```bash
 docker compose up --build

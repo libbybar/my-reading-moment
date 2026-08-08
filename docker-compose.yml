@@ -5,6 +5,7 @@ services:
       - server/.env
     environment:
       CLIENT_ORIGIN: http://localhost:8080
+      PORT: 7000
 
   client:
     build: ./client
