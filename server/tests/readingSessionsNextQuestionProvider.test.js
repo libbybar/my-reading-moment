@@ -25,6 +25,15 @@ function seedSession() {
   });
 }
 
+const nextQuestionFailureBody = { error: "Failed to generate the next reading question" };
+
+function expectNextQuestionFailure(response) {
+  expect(response.statusCode).toBe(500);
+  expect(response.body).toEqual(nextQuestionFailureBody);
+  expect(JSON.stringify(response.body)).not.toContain("provider exploded");
+  expect(JSON.stringify(response.body)).not.toContain("unexpected-status");
+}
+
 describe("POST /api/reading-sessions/next-question (provider integration)", () => {
   afterEach(() => {
     jest.resetAllMocks();
@@ -40,8 +49,7 @@ describe("POST /api/reading-sessions/next-question (provider integration)", () =
       .post("/api/reading-sessions/next-question")
       .send({ sessionId: session.sessionId });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectNextQuestionFailure(response);
 
     const sessionAfter = readingSessionStore.getSession(session.sessionId);
     expect(sessionAfter.currentQuestion).toEqual(sessionBefore.currentQuestion);
@@ -115,8 +123,7 @@ describe("POST /api/reading-sessions/next-question (provider integration)", () =
       .post("/api/reading-sessions/next-question")
       .send({ sessionId: session.sessionId });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expectNextQuestionFailure(response);
 
     const sessionAfter = readingSessionStore.getSession(session.sessionId);
     expect(sessionAfter.currentQuestion).toEqual(sessionBefore.currentQuestion);
@@ -208,8 +215,7 @@ describe("POST /api/reading-sessions/next-question (provider integration)", () =
         .post("/api/reading-sessions/next-question")
         .send({ sessionId: session.sessionId });
 
-      expect(response.statusCode).toBe(500);
-      expect(response.body).toEqual({ error: expect.any(String) });
+      expectNextQuestionFailure(response);
 
       const sessionAfter = readingSessionStore.getSession(session.sessionId);
       expect(sessionAfter.currentQuestion).toEqual(sessionBefore.currentQuestion);

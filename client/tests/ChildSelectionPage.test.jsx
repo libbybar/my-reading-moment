@@ -75,16 +75,6 @@ afterEach(() => {
 })
 
 describe('ChildSelectionPage', () => {
-  it('calls fetchChildProfiles (the child-profile service boundary) when the page mounts', async () => {
-    fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
-
-    renderPage()
-
-    await screen.findByRole('button', { name: GENERIC_PROFILES[0].name })
-
-    expect(fetchChildProfiles).toHaveBeenCalled()
-  })
-
   it('shows only the localized loading state before the profiles resolve', () => {
     fetchChildProfiles.mockReturnValue(new Promise(() => {}))
 

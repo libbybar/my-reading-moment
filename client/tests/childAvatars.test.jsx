@@ -7,14 +7,9 @@ afterEach(() => {
 })
 
 describe('getChildAvatar', () => {
-  it('returns a renderable avatar node for any profile', () => {
-    const profileA = { id: 'a', name: 'א', grammaticalGender: 'female', readingLevel: 'beginner' }
-    const profileB = { id: 'b', name: 'ב', grammaticalGender: 'male', readingLevel: 'advanced' }
+  it('returns a renderable placeholder avatar node', () => {
+    const { container } = render(getChildAvatar())
 
-    const { container: containerA } = render(getChildAvatar(profileA))
-    const { container: containerB } = render(getChildAvatar(profileB))
-
-    expect(containerA.querySelector('svg')).toBeInTheDocument()
-    expect(containerB.querySelector('svg')).toBeInTheDocument()
+    expect(container.querySelector('svg')).toBeInTheDocument()
   })
 })

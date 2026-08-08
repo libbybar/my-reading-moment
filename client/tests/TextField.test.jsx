@@ -24,24 +24,29 @@ describe('TextField', () => {
     expect(screen.getByRole('textbox', { name: 'Answer' })).toHaveValue('hello')
   })
 
-  it('calls onChange when the value changes', () => {
-    const handleChange = vi.fn()
+  it('forwards the change event with the updated value', () => {
+    let forwardedValue
+    const handleChange = vi.fn((event) => {
+      forwardedValue = event.target.value
+    })
     renderTextField({ onChange: handleChange, ariaLabel: 'Answer' })
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Answer' }), {
       target: { value: 'new value' },
     })
 
-    expect(handleChange).toHaveBeenCalled()
+    expect(handleChange).toHaveBeenCalledTimes(1)
+    expect(forwardedValue).toBe('new value')
   })
 
-  it('calls onKeyDown when a key is pressed', () => {
+  it('forwards the keyDown event with the pressed key', () => {
     const handleKeyDown = vi.fn()
     renderTextField({ onKeyDown: handleKeyDown, ariaLabel: 'Answer' })
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Answer' }), { key: 'Enter' })
 
-    expect(handleKeyDown).toHaveBeenCalled()
+    expect(handleKeyDown).toHaveBeenCalledTimes(1)
+    expect(handleKeyDown.mock.calls[0][0].key).toBe('Enter')
   })
 
   it('respects the disabled prop', () => {

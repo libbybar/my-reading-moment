@@ -70,9 +70,21 @@ describe('RegisterPage', () => {
     )
 
     renderPage()
+    fillAndSubmit('parent@example.com', 'correct-horse')
+
+    expect(await screen.findByText(TEXT.register.invalidInputError)).toBeInTheDocument()
+    expect(register).toHaveBeenCalledWith({
+      email: 'parent@example.com',
+      password: 'correct-horse',
+    })
+  })
+
+  it('rejects invalid form input before calling register', async () => {
+    renderPage()
     fillAndSubmit('not-an-email', 'short')
 
     expect(await screen.findByText(TEXT.register.invalidInputError)).toBeInTheDocument()
+    expect(register).not.toHaveBeenCalled()
   })
 
   it('shows the email-taken message for a 409 response', async () => {
