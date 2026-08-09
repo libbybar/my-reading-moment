@@ -18,7 +18,7 @@ A possible future direction is expanding the flow to approximately three questio
 
 - Further logging/security hardening, if anything from "Debug logging" below is still incomplete.
 - `LICENSES_ALL` (dependency license auditing).
-- CI release/tag deliverables.
+- CD now builds and pushes Docker images to GHCR on every successful `main` build (see "CI/CD" below) — actually deploying those images to a real host is still undecided (no PaaS/server target chosen yet).
 - Optional LLM latency optimizations: caching, pre-generation, or a combined initial passage+question generation call (a deliberate trade-off in the current LLM provider architecture — see "LLM provider architecture" below).
 - Success animation, progress summaries, parent feedback, parent-facing progress tables, and session-completion screens are all still out of scope — none of these exist yet.
 - **Adaptive difficulty is now implemented** (Learning Progression — see "Learning model" above), but several things it depends on or could extend are still open:
@@ -200,6 +200,16 @@ A local, production-style build/runtime path exists alongside — not replacing 
 **`NODE_ENV` is deliberately left unset in the server container.** The auth cookie's `secure: NODE_ENV === "production"` flag (`authRoutes.js`) would silently stop the browser from storing the cookie at all over plain HTTP — this Docker setup has no TLS, so setting `NODE_ENV=production` here would break login. This is a known limitation of the current local-only setup, not a decision to revisit lightly.
 
 **`server/.env` is loaded via Compose `env_file`, never copied into the image** (`server/.dockerignore` excludes it) — secrets stay out of the image layers. `CLIENT_ORIGIN` is the one exception: `docker-compose.yml` overrides it to `http://localhost:8080` (the nginx-exposed origin) for the Docker path only, layered on top of whatever `server/.env` has (which keeps `http://localhost:5173` for local `npm run dev`, unmodified).
+
+## CI/CD
+
+`.github/workflows/ci.yml` (tests+lint for both `client`/`server`, plus a client build) and `.github/workflows/cd.yml` are two separate workflow files, deliberately not one job graph.
+
+**CD is triggered by CI's own success, via `workflow_run`, not by re-running tests itself.** `cd.yml` listens for the `CI` workflow (matched by name) completing, and its job `if` explicitly checks all three of `conclusion == 'success'`, `event == 'push'`, and `head_branch == 'main'` — this was a deliberate choice over duplicating the test/lint steps inside `cd.yml`, to avoid running the same checks twice. The three-way check (not just a `branches: [main]` filter on the trigger) is intentional: a bare branch filter alone wouldn't reliably rule out a CI run that was itself triggered by an unmerged PR, which is a real "CD fired when it shouldn't have" risk — checking `event == 'push'` closes that. One consequence of using `workflow_run`: GitHub only picks up a *new* workflow file once it's present on the default branch, so `cd.yml` itself doesn't fire on the push that first adds it — only from the next CI run onward.
+
+**CD builds and pushes Docker images only — it does not deploy anywhere.** There is no hosting target configured yet (no PaaS, no server to SSH into) — see "Docker" above for why the current Docker setup is local-only (no TLS, server port unpublished). `cd.yml` builds `client`/`server` from their existing `Dockerfile`s and pushes to GHCR, using the built-in `GITHUB_TOKEN` (`packages: write`) — no additional secret was needed. It checks out `github.event.workflow_run.head_sha` specifically (the exact commit CI validated), not whatever HEAD of `main` happens to be at trigger time, to avoid a race if another push lands in between. Actually deploying these images somewhere is a separate, not-yet-made decision (see "Planned direction" above).
+
+**Images are tagged by commit SHA only — no `latest`, and the image path is lowercased.** `latest` was deliberately skipped for now (nothing consumes these images yet, so a mutable floating tag has no current consumer to serve and would just be one more thing to reconsider once a real deploy target exists). The image path (`ghcr.io/<owner>/<repo>/<server|client>`) is explicitly lowercased in a dedicated step (bash's `${GITHUB_REPOSITORY,,}`) rather than trusting `github.repository` to already be lowercase — GHCR requires a lowercase path, and repo names/owners aren't guaranteed lowercase in general even though this repo's happen to be today.
 
 ## UI text rule
 
