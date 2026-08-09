@@ -3,8 +3,30 @@
 import crypto from "crypto";
 
 const sessions = new Map();
+// Enforces "one active session per child" — cleared when a session reaches "completed".
+const activeSessionIdByChildKey = new Map();
 
-function createSession({ passage, currentQuestion, askedQuestionIds, parentId, childId }) {
+function childKey(parentId, childId) {
+  return `${parentId}:${childId}`;
+}
+
+function hasActiveSessionForChild(parentId, childId) {
+  return activeSessionIdByChildKey.has(childKey(parentId, childId));
+}
+
+// Used by /preview to resume a refreshed child's existing active session.
+function getActiveSessionForChild(parentId, childId) {
+  const sessionId = activeSessionIdByChildKey.get(childKey(parentId, childId));
+
+  return sessionId ? getSession(sessionId) : undefined;
+}
+
+// Returns null if this child already has an active session.
+function createSession({ passage, currentQuestion, askedQuestionIds, parentId, childId, level, sublevel }) {
+  if (hasActiveSessionForChild(parentId, childId)) {
+    return null;
+  }
+
   const sessionId = crypto.randomUUID();
 
   const session = {
@@ -12,12 +34,19 @@ function createSession({ passage, currentQuestion, askedQuestionIds, parentId, c
     passage: structuredClone(passage),
     currentQuestion: structuredClone(currentQuestion),
     askedQuestionIds: structuredClone(askedQuestionIds),
-    // Trusted because sessions are created only by authenticated /preview.
     parentId,
     childId,
+    // Capture the rung this exact text was generated for.
+    level,
+    sublevel,
+    // Lifecycle: active -> locked -> (active | completed).
+    state: "active",
+    incorrectAttemptCount: 0,
+    startedAt: new Date().toISOString(),
   };
 
   sessions.set(sessionId, session);
+  activeSessionIdByChildKey.set(childKey(parentId, childId), sessionId);
 
   return structuredClone(session);
 }
@@ -26,6 +55,50 @@ function getSession(sessionId) {
   const session = sessions.get(sessionId);
 
   return session ? structuredClone(session) : undefined;
+}
+
+// Synchronous compare-and-swap; distinguishes 404 from a busy/finalized session.
+function tryClaimSession(sessionId) {
+  const session = sessions.get(sessionId);
+
+  if (!session) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  if (session.state !== "active") {
+    return { ok: false, reason: "conflict" };
+  }
+
+  session.state = "locked";
+
+  return { ok: true, session: structuredClone(session) };
+}
+
+// Releases non-terminal work or failed claims back to "active".
+function releaseSession(sessionId) {
+  const session = sessions.get(sessionId);
+
+  if (!session) {
+    return undefined;
+  }
+
+  session.state = "active";
+
+  return structuredClone(session);
+}
+
+// Terminal transition — only valid from "locked". Frees the child for a new session.
+function completeSession(sessionId) {
+  const session = sessions.get(sessionId);
+
+  if (!session) {
+    return undefined;
+  }
+
+  session.state = "completed";
+  activeSessionIdByChildKey.delete(childKey(session.parentId, session.childId));
+
+  return structuredClone(session);
 }
 
 function replaceCurrentQuestion(sessionId, question) {
@@ -50,10 +123,45 @@ function replaceCurrentQuestion(sessionId, question) {
   return structuredClone(updatedSession);
 }
 
-function clearSessions() {
-  sessions.clear();
+function recordIncorrectAttempt(sessionId) {
+  const session = sessions.get(sessionId);
+
+  if (!session) {
+    return undefined;
+  }
+
+  session.incorrectAttemptCount += 1;
+
+  return structuredClone(session);
 }
 
-export { createSession, getSession, replaceCurrentQuestion, clearSessions };
+function clearSessions() {
+  sessions.clear();
+  activeSessionIdByChildKey.clear();
+}
 
-export default { createSession, getSession, replaceCurrentQuestion, clearSessions };
+export {
+  createSession,
+  getSession,
+  tryClaimSession,
+  releaseSession,
+  completeSession,
+  replaceCurrentQuestion,
+  recordIncorrectAttempt,
+  hasActiveSessionForChild,
+  getActiveSessionForChild,
+  clearSessions,
+};
+
+export default {
+  createSession,
+  getSession,
+  tryClaimSession,
+  releaseSession,
+  completeSession,
+  replaceCurrentQuestion,
+  recordIncorrectAttempt,
+  hasActiveSessionForChild,
+  getActiveSessionForChild,
+  clearSessions,
+};

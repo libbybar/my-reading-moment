@@ -7,13 +7,15 @@ const passageFixture = {
   id: seedPassage.id,
   title: seedPassage.title,
   text: seedPassage.text,
-  readingLevel: seedPassage.readingLevel,
+  level: seedPassage.level,
+  sublevel: seedPassage.sublevel,
 };
 
 describe("mockProvider", () => {
   runLlmProviderContractTests(mockProvider, {
     passage: passageFixture,
-    readingLevel: passageFixture.readingLevel,
+    level: passageFixture.level,
+    sublevel: passageFixture.sublevel,
   });
 
   describe("mock-specific behavior", () => {
@@ -161,51 +163,80 @@ describe("mockProvider", () => {
       expect(fourth).toEqual({ status: "exhausted" });
     });
 
-    test("resolves an exhausted result for a passage id with no seeded questions", async () => {
-      const result = await mockProvider.generateQuestion({
-        passage: { ...passageFixture, id: "unknown-passage" },
-        askedQuestionIds: [],
+    test("synthesizes exactly one deterministic question for a passage with no seeded questions", async () => {
+      const passage = { ...passageFixture, id: "unknown-passage" };
+
+      const first = await mockProvider.generateQuestion({ passage, askedQuestionIds: [] });
+      expect(first).toEqual({
+        status: "ok",
+        question: {
+          id: "unknown-passage-q1",
+          passageId: "unknown-passage",
+          prompt: expect.any(String),
+          expectedMeaning: expect.any(String),
+        },
       });
 
-      expect(result).toEqual({ status: "exhausted" });
+      const second = await mockProvider.generateQuestion({
+        passage,
+        askedQuestionIds: [first.question.id],
+      });
+      expect(second).toEqual({ status: "exhausted" });
     });
 
-    test("selects the seeded passage matching the requested reading level", async () => {
+    test("selects the seeded passage matching the requested level/sublevel", async () => {
       const [firstSeedPassage, secondSeedPassage] = mockPassages;
 
-      const beginnerResult = await mockProvider.generatePassage({
-        readingLevel: firstSeedPassage.readingLevel,
+      const firstResult = await mockProvider.generatePassage({
+        level: firstSeedPassage.level,
+        sublevel: firstSeedPassage.sublevel,
         interests: [],
       });
 
-      expect(beginnerResult.id).toBe(firstSeedPassage.id);
+      expect(firstResult.id).toBe(firstSeedPassage.id);
 
-      const intermediateResult = await mockProvider.generatePassage({
-        readingLevel: secondSeedPassage.readingLevel,
+      const secondResult = await mockProvider.generatePassage({
+        level: secondSeedPassage.level,
+        sublevel: secondSeedPassage.sublevel,
         interests: [],
       });
 
-      expect(intermediateResult.id).toBe(secondSeedPassage.id);
+      expect(secondResult.id).toBe(secondSeedPassage.id);
     });
 
     test("ignores interests when selecting a passage", async () => {
       const withoutInterests = await mockProvider.generatePassage({
-        readingLevel: seedPassage.readingLevel,
+        level: seedPassage.level,
+        sublevel: seedPassage.sublevel,
         interests: [],
       });
 
       const withInterests = await mockProvider.generatePassage({
-        readingLevel: seedPassage.readingLevel,
+        level: seedPassage.level,
+        sublevel: seedPassage.sublevel,
         interests: ["חלל", "רובוטים"],
       });
 
       expect(withInterests.id).toBe(withoutInterests.id);
     });
 
-    test("rejects when no seeded passage matches the requested reading level", async () => {
-      await expect(
-        mockProvider.generatePassage({ readingLevel: "advanced", interests: [] }),
-      ).rejects.toThrow();
+    test("synthesizes a deterministic passage for a level/sublevel with no seed data, sized to that rung's spec", async () => {
+      const result = await mockProvider.generatePassage({ level: 4, sublevel: 4, interests: [] });
+
+      expect(result).toMatchObject({ level: 4, sublevel: 4 });
+      expect(typeof result.id).toBe("string");
+      expect(result.id.length).toBeGreaterThan(0);
+      expect(typeof result.title).toBe("string");
+      expect(result.title.length).toBeGreaterThan(0);
+      // 4.4's spec calls for 10-14 sentences (see readingLevelSpec.js).
+      expect(result.text.split(".").filter((part) => part.trim().length > 0).length).toBeGreaterThanOrEqual(10);
+    });
+
+    test("synthesizing the same level/sublevel twice is deterministic (same id)", async () => {
+      const first = await mockProvider.generatePassage({ level: 3, sublevel: 3, interests: [] });
+      const second = await mockProvider.generatePassage({ level: 3, sublevel: 3, interests: [] });
+
+      expect(first.id).toBe(second.id);
     });
   });
 });

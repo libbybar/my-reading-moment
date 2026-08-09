@@ -2,18 +2,19 @@ import crypto from "crypto";
 
 import * as geminiClient from "./geminiClient.js";
 import { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt } from "./prompts.js";
+import { isValidLevel, isValidSublevel } from "../../data/readingLevelSpec.js";
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
 // Gemini is only ever trusted for prose (title/text, prompt/expectedMeaning,
-// isCorrect) — structural fields (id, readingLevel, passageId) are always
+// isCorrect) — structural fields (id, level, sublevel, passageId) are always
 // assigned by this module, never taken from the model's output.
 
-async function generatePassage({ readingLevel, interests = [] }) {
-  if (!isNonBlankString(readingLevel)) {
-    throw new Error("generatePassage requires a non-blank readingLevel");
+async function generatePassage({ level, sublevel, interests = [] }) {
+  if (!isValidLevel(level) || !isValidSublevel(sublevel)) {
+    throw new Error("generatePassage requires a valid level and sublevel");
   }
 
   if (!Array.isArray(interests)) {
@@ -21,11 +22,12 @@ async function generatePassage({ readingLevel, interests = [] }) {
   }
 
   const content = await geminiClient.generateJson({
-    prompt: buildPassagePrompt({ readingLevel, interests }),
+    prompt: buildPassagePrompt({ level, sublevel, interests }),
     responseSchema: geminiClient.PASSAGE_RESPONSE_SCHEMA,
     label: "Gemini: generatePassage",
     describeResult: (result) => ({
-      readingLevel,
+      level,
+      sublevel,
       textLength: typeof result.text === "string" ? result.text.length : null,
     }),
   });
@@ -38,7 +40,8 @@ async function generatePassage({ readingLevel, interests = [] }) {
     id: crypto.randomUUID(),
     title: content.title,
     text: content.text,
-    readingLevel,
+    level,
+    sublevel,
   };
 }
 
@@ -47,9 +50,10 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
     !passage ||
     !isNonBlankString(passage.id) ||
     !isNonBlankString(passage.text) ||
-    !isNonBlankString(passage.readingLevel)
+    !isValidLevel(passage.level) ||
+    !isValidSublevel(passage.sublevel)
   ) {
-    throw new Error("generateQuestion requires a passage with id, text, and readingLevel");
+    throw new Error("generateQuestion requires a passage with id, text, level, and sublevel");
   }
 
   if (!Array.isArray(askedQuestionIds) || !askedQuestionIds.every(isNonBlankString)) {
@@ -61,7 +65,8 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
     responseSchema: geminiClient.QUESTION_RESPONSE_SCHEMA,
     label: "Gemini: generateQuestion",
     describeResult: (result) => ({
-      readingLevel: passage.readingLevel,
+      level: passage.level,
+      sublevel: passage.sublevel,
       promptLength: typeof result.prompt === "string" ? result.prompt.length : null,
     }),
   });

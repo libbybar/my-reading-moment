@@ -32,15 +32,18 @@ describe("geminiProvider", () => {
       id: "gemini-contract-passage",
       title: "כותרת קטע",
       text: "טקסט קטע לבדיקה.",
-      readingLevel: "beginner",
+      level: 1,
+      sublevel: 1,
     },
-    readingLevel: "beginner",
+    level: 1,
+    sublevel: 1,
   });
 
   describe("gemini-specific behavior", () => {
-    test("generatePassage assigns a fresh id and the requested readingLevel, using Gemini's title/text", async () => {
+    test("generatePassage assigns a fresh id and the requested level/sublevel, using Gemini's title/text", async () => {
       const result = await geminiProvider.generatePassage({
-        readingLevel: "beginner",
+        level: 1,
+        sublevel: 1,
         interests: [],
       });
 
@@ -48,7 +51,8 @@ describe("geminiProvider", () => {
         id: expect.any(String),
         title: GENERIC_CONTENT.title,
         text: GENERIC_CONTENT.text,
-        readingLevel: "beginner",
+        level: 1,
+        sublevel: 1,
       });
     });
 
@@ -56,7 +60,7 @@ describe("geminiProvider", () => {
       geminiClient.generateJson.mockResolvedValue({ ...GENERIC_CONTENT, title: "   " });
 
       await expect(
-        geminiProvider.generatePassage({ readingLevel: "beginner", interests: [] }),
+        geminiProvider.generatePassage({ level: 1, sublevel: 1, interests: [] }),
       ).rejects.toThrow();
     });
 
@@ -64,12 +68,12 @@ describe("geminiProvider", () => {
       geminiClient.generateJson.mockResolvedValue({ ...GENERIC_CONTENT, text: "" });
 
       await expect(
-        geminiProvider.generatePassage({ readingLevel: "beginner", interests: [] }),
+        geminiProvider.generatePassage({ level: 1, sublevel: 1, interests: [] }),
       ).rejects.toThrow();
     });
 
     test("generateQuestion assigns a fresh id and the passage's id, using Gemini's prompt/expectedMeaning", async () => {
-      const passage = { id: "passage-1", text: "טקסט", readingLevel: "beginner" };
+      const passage = { id: "passage-1", text: "טקסט", level: 1, sublevel: 1 };
 
       const result = await geminiProvider.generateQuestion({ passage, askedQuestionIds: [] });
 
@@ -85,7 +89,7 @@ describe("geminiProvider", () => {
     });
 
     test("generateQuestion rejects when Gemini returns a blank expectedMeaning", async () => {
-      const passage = { id: "passage-1", text: "טקסט", readingLevel: "beginner" };
+      const passage = { id: "passage-1", text: "טקסט", level: 1, sublevel: 1 };
       geminiClient.generateJson.mockResolvedValue({ ...GENERIC_CONTENT, expectedMeaning: "" });
 
       await expect(
@@ -94,7 +98,7 @@ describe("geminiProvider", () => {
     });
 
     test("generateQuestion never reports an exhausted status, regardless of askedQuestionIds", async () => {
-      const passage = { id: "passage-1", text: "טקסט", readingLevel: "beginner" };
+      const passage = { id: "passage-1", text: "טקסט", level: 1, sublevel: 1 };
 
       const result = await geminiProvider.generateQuestion({
         passage,
@@ -105,7 +109,7 @@ describe("geminiProvider", () => {
     });
 
     test("passes the passage text to the question prompt", async () => {
-      const passage = { id: "passage-1", text: "טקסט ייחודי לבדיקה", readingLevel: "beginner" };
+      const passage = { id: "passage-1", text: "טקסט ייחודי לבדיקה", level: 1, sublevel: 1 };
 
       await geminiProvider.generateQuestion({ passage, askedQuestionIds: [] });
 

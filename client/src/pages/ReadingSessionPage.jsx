@@ -11,7 +11,6 @@ import {
   submitAnswer,
   fetchNextQuestion,
 } from '../services/readingSessionService';
-import { completeLearningPathStep } from '../services/childProfileService';
 import { useActiveChild } from '../context/useActiveChild';
 import {
   ExerciseCard,
@@ -34,6 +33,8 @@ function isValidCanonicalQuestion(question) {
   );
 }
 
+const TEXT_OUTCOMES = ['continues', 'success', 'failure'];
+
 function isValidEvaluationResult(result, question) {
   if (!result || typeof result !== 'object') {
     return false;
@@ -51,7 +52,16 @@ function isValidEvaluationResult(result, question) {
     return false;
   }
 
-  return result.feedbackType === (result.isCorrect ? 'correct' : 'retry');
+  if (result.feedbackType !== (result.isCorrect ? 'correct' : 'retry')) {
+    return false;
+  }
+
+  if (!TEXT_OUTCOMES.includes(result.textOutcome)) {
+    return false;
+  }
+
+  // Correct answers must finalize the text as success.
+  return result.isCorrect ? result.textOutcome === 'success' : result.textOutcome !== 'success';
 }
 
 function isValidReplacementQuestion(response, exercise, question) {
@@ -70,8 +80,6 @@ function isValidReplacementQuestion(response, exercise, question) {
   return response.question.id !== question.id;
 }
 
-const MAX_INCORRECT_ATTEMPTS = 3;
-
 function ReadingSessionPage() {
   const { activeChildId } = useActiveChild();
   const navigate = useNavigate();
@@ -82,7 +90,6 @@ function ReadingSessionPage() {
   const [questionStatus, setQuestionStatus] = useState('answering');
   const [answerCycleMessage, setAnswerCycleMessage] = useState(null);
   const [isReturningToPath, setIsReturningToPath] = useState(false);
-  const [incorrectAttemptCount, setIncorrectAttemptCount] = useState(0);
   const isSubmittingRef = useRef(false);
   const isGeneratingRef = useRef(false);
   const exerciseRequestRef = useRef(null);
@@ -147,17 +154,14 @@ function ReadingSessionPage() {
           return;
         }
 
-        if (result.feedbackType === 'correct') {
+        // The server owns the attempt limit; the client renders textOutcome.
+        if (result.textOutcome === 'success') {
           setAnswerCycleMessage(resolveText('readingSession.correctFeedbackMessage'));
           setQuestionStatus('correct');
           return;
         }
 
-        // Incorrect attempts persist across replacement questions during this visit.
-        const nextIncorrectAttemptCount = incorrectAttemptCount + 1;
-        setIncorrectAttemptCount(nextIncorrectAttemptCount);
-
-        if (nextIncorrectAttemptCount >= MAX_INCORRECT_ATTEMPTS) {
+        if (result.textOutcome === 'failure') {
           setAnswerCycleMessage(resolveText('readingSession.attemptLimitFeedbackMessage'));
           setQuestionStatus('attemptLimitReached');
           return;
@@ -221,7 +225,7 @@ function ReadingSessionPage() {
       });
   };
 
-  const handleReturnToPath = (shouldAdvanceProgress) => {
+  const handleReturnToPath = () => {
     // navigate() does not unmount synchronously.
     if (hasReturnedToPathRef.current) {
       return;
@@ -230,14 +234,7 @@ function ReadingSessionPage() {
     hasReturnedToPathRef.current = true;
     setIsReturningToPath(true);
 
-    // Progress writes are best-effort; returning to the path must still work.
-    const advance = shouldAdvanceProgress
-      ? completeLearningPathStep(activeChildId).catch(() => {})
-      : Promise.resolve();
-
-    advance.finally(() => {
-      navigate('/child-home');
-    });
+    navigate('/child-home');
   };
 
   if (!activeChildId) {
@@ -294,7 +291,7 @@ function ReadingSessionPage() {
                 onRequestReplacement={handleRequestReplacementQuestion}
                 replacementActionLabel={resolveText('readingSession.requestNextQuestionButtonLabel')}
                 generatingLabel={resolveText('readingSession.generatingNextQuestionLabel')}
-                onReturnToPath={() => handleReturnToPath(questionStatus === 'correct')}
+                onReturnToPath={handleReturnToPath}
                 returnToPathLabel={resolveText('readingSession.returnToPathButtonLabel')}
                 isReturningToPath={isReturningToPath}
               />

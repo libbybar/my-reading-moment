@@ -50,7 +50,7 @@ describe("POST /api/reading-sessions/preview (child profile grammaticalGender)",
     const child = {
       _id: childId,
       name: "Test Malformed Gender",
-      learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+      learningProfile: { readingLevel: "beginner", interests: [] },
     };
 
     if (grammaticalGenderValue !== undefined) {

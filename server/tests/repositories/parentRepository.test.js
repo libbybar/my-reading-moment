@@ -82,8 +82,8 @@ describe("parentRepository", () => {
     });
   });
 
-  describe("incrementCompletedStepCount", () => {
-    test("increments completedStepCount on the matching child by 1", async () => {
+  describe("applyTextCompletionProgress", () => {
+    async function createChild() {
       const parent = await parentRepository.create({
         email: "parent@example.com",
         passwordHash: "hash",
@@ -91,56 +91,91 @@ describe("parentRepository", () => {
           {
             name: "גאיה",
             grammaticalGender: "female",
-            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+            learningProfile: {
+              readingLevel: "beginner",
+              interests: [],
+              currentLevel: 2,
+              currentSublevel: 2,
+            },
+            journeyProgress: 0,
           },
         ],
       });
-      const childId = parent.children[0]._id;
 
-      const updatedChild = await parentRepository.incrementCompletedStepCount(parent._id, childId);
+      return { parent, childId: parent.children[0]._id };
+    }
 
-      expect(updatedChild.learningProfile.completedStepCount).toBe(1);
+    test("increments journeyProgress when incrementJourneyProgress is true", async () => {
+      const { parent, childId } = await createChild();
+
+      const updatedChild = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: true,
+        levelUpdate: null,
+      });
+
+      expect(updatedChild.journeyProgress).toBe(1);
+      expect(updatedChild.learningProfile.currentLevel).toBe(2);
+      expect(updatedChild.learningProfile.currentSublevel).toBe(2);
     });
 
-    test("increments again on a second call, rather than resetting", async () => {
-      const parent = await parentRepository.create({
-        email: "parent@example.com",
-        passwordHash: "hash",
-        children: [
-          {
-            name: "גאיה",
-            grammaticalGender: "female",
-            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
-          },
-        ],
+    test("does not increment journeyProgress when incrementJourneyProgress is false", async () => {
+      const { parent, childId } = await createChild();
+
+      const updatedChild = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: false,
+        levelUpdate: { level: 2, sublevel: 1 },
       });
-      const childId = parent.children[0]._id;
 
-      await parentRepository.incrementCompletedStepCount(parent._id, childId);
-      const updatedChild = await parentRepository.incrementCompletedStepCount(parent._id, childId);
-
-      expect(updatedChild.learningProfile.completedStepCount).toBe(2);
+      expect(updatedChild.journeyProgress).toBe(0);
+      expect(updatedChild.learningProfile.currentLevel).toBe(2);
+      expect(updatedChild.learningProfile.currentSublevel).toBe(1);
     });
 
-    test("returns null when the child does not belong to the given parent", async () => {
-      const parent = await parentRepository.create({
-        email: "parent@example.com",
-        passwordHash: "hash",
-        children: [
-          {
-            name: "גאיה",
-            grammaticalGender: "female",
-            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
-          },
-        ],
-      });
-      const otherParent = await parentRepository.create({
-        email: "other@example.com",
-        passwordHash: "hash",
-      });
-      const childId = parent.children[0]._id;
+    test("updates currentLevel/currentSublevel when levelUpdate is given", async () => {
+      const { parent, childId } = await createChild();
 
-      const result = await parentRepository.incrementCompletedStepCount(otherParent._id, childId);
+      const updatedChild = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: true,
+        levelUpdate: { level: 2, sublevel: 3 },
+      });
+
+      expect(updatedChild.learningProfile.currentLevel).toBe(2);
+      expect(updatedChild.learningProfile.currentSublevel).toBe(3);
+      expect(updatedChild.journeyProgress).toBe(1);
+    });
+
+    test("mutates nothing but still returns the child when there is nothing to apply (null must mean 'not found', never 'no-op')", async () => {
+      const { parent, childId } = await createChild();
+
+      const result = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: false,
+        levelUpdate: null,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result.journeyProgress).toBe(0);
+    });
+
+    test("returns null when the child does not belong to the given parent, even with something to apply", async () => {
+      const { childId } = await createChild();
+      const otherParent = await parentRepository.create({ email: "other@example.com", passwordHash: "hash" });
+
+      const result = await parentRepository.applyTextCompletionProgress(otherParent._id, childId, {
+        incrementJourneyProgress: true,
+        levelUpdate: null,
+      });
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null when the child does not belong to the given parent and there is nothing to apply", async () => {
+      const { childId } = await createChild();
+      const otherParent = await parentRepository.create({ email: "other@example.com", passwordHash: "hash" });
+
+      const result = await parentRepository.applyTextCompletionProgress(otherParent._id, childId, {
+        incrementJourneyProgress: false,
+        levelUpdate: null,
+      });
 
       expect(result).toBeNull();
     });
@@ -155,7 +190,7 @@ describe("parentRepository", () => {
           {
             name: "גאיה",
             grammaticalGender: "female",
-            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+            learningProfile: { readingLevel: "beginner", interests: [] },
           },
         ],
       });
@@ -183,7 +218,7 @@ describe("parentRepository", () => {
           {
             name: "גאיה",
             grammaticalGender: "female",
-            learningProfile: { readingLevel: "beginner", interests: [], completedStepCount: 0 },
+            learningProfile: { readingLevel: "beginner", interests: [] },
           },
         ],
       });

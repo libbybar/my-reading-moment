@@ -5,29 +5,38 @@ import {
 } from "../../src/services/llmProvider/prompts.js";
 
 describe("buildPassagePrompt", () => {
-  test("beginner guidance asks for full nikud and very simple vocabulary", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: [] });
+  test("1.1 guidance asks for full nikud and the shortest length/word ranges", () => {
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: [] });
 
     expect(prompt).toContain("ניקוד מלא");
-    expect(prompt).toContain("פשוט מאוד");
+    expect(prompt).toContain("2 עד 3 משפטים");
+    expect(prompt).toContain("3 עד 4 מילים");
   });
 
-  test("intermediate guidance asks for partial nikud only", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "intermediate", interests: [] });
+  test("3.2 guidance asks for a mixed nikud style", () => {
+    const prompt = buildPassagePrompt({ level: 3, sublevel: 2, interests: [] });
 
-    expect(prompt).toContain("5 עד 8 משפטים");
-    expect(prompt).toContain("מילים קשות");
+    expect(prompt).toContain("חלק משמעותי מהטקסט ללא ניקוד");
+    expect(prompt).toContain("5 עד 7 משפטים");
   });
 
-  test("advanced guidance asks for no nikud except to avoid ambiguity", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "advanced", interests: [] });
+  test("4.4 guidance asks for no nikud at all and the longest length/word ranges", () => {
+    const prompt = buildPassagePrompt({ level: 4, sublevel: 4, interests: [] });
 
-    expect(prompt).toContain("10 עד 12 משפטים");
-    expect(prompt).toContain("אל תשתמשי בניקוד");
+    expect(prompt).toContain("אל תשתמשי בניקוד כלל");
+    expect(prompt).toContain("10 עד 14 משפטים");
+    expect(prompt).toContain("9 עד 15 מילים");
+  });
+
+  test("different sublevels within the same level produce different guidance", () => {
+    const sublevel1 = buildPassagePrompt({ level: 1, sublevel: 1, interests: [] });
+    const sublevel4 = buildPassagePrompt({ level: 1, sublevel: 4, interests: [] });
+
+    expect(sublevel1).not.toBe(sublevel4);
   });
 
   test("includes interests when provided, capped to at most one in the instruction", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: ["חלל", "רובוטים"] });
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: ["חלל", "רובוטים"] });
 
     expect(prompt).toContain("חלל");
     expect(prompt).toContain("רובוטים");
@@ -35,20 +44,20 @@ describe("buildPassagePrompt", () => {
   });
 
   test("instructs to use brands/franchises/characters only as general inspiration, not by name", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: ["הארי פוטר"] });
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: ["הארי פוטר"] });
 
     expect(prompt).toContain("מותג, סדרה, דמות או עולם בדיוני מוכר");
     expect(prompt).toContain("אל תזכירי את השם");
   });
 
   test("omits the interests line when interests is empty", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: [] });
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: [] });
 
     expect(prompt).not.toContain("יש עניין בנושאים");
   });
 
   test("asks for a friendly main character, a simple beginning/middle/end, and connected sentences", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: [] });
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: [] });
 
     expect(prompt).toContain("דמות ראשית ילדית");
     expect(prompt).toContain("התחלה, אמצע וסוף");
@@ -57,36 +66,36 @@ describe("buildPassagePrompt", () => {
   });
 
   test("asks for one small event or problem that gets resolved", () => {
-    const prompt = buildPassagePrompt({ readingLevel: "beginner", interests: [] });
+    const prompt = buildPassagePrompt({ level: 1, sublevel: 1, interests: [] });
 
     expect(prompt).toContain("אירוע קטן אחד או בעיה קטנה אחת שנפתרת");
   });
 
-  test("throws for an unrecognized readingLevel", () => {
-    expect(() => buildPassagePrompt({ readingLevel: "expert", interests: [] })).toThrow();
+  test("throws for an unrecognized level/sublevel combination", () => {
+    expect(() => buildPassagePrompt({ level: 5, sublevel: 1, interests: [] })).toThrow();
+    expect(() => buildPassagePrompt({ level: 1, sublevel: 5, interests: [] })).toThrow();
   });
 });
 
 describe("buildQuestionPrompt", () => {
   test("includes the passage text", () => {
-    const passage = { text: "טקסט ייחודי לבדיקה.", readingLevel: "beginner" };
+    const passage = { text: "טקסט ייחודי לבדיקה.", level: 1, sublevel: 1 };
 
     const prompt = buildQuestionPrompt({ passage });
 
     expect(prompt).toContain(passage.text);
   });
 
-  test("beginner guidance asks for a short literal answer and a vocalized question", () => {
-    const passage = { text: "טקסט.", readingLevel: "beginner" };
+  test("1.1 guidance asks for locating an explicit detail", () => {
+    const passage = { text: "טקסט.", level: 1, sublevel: 1 };
 
     const prompt = buildQuestionPrompt({ passage });
 
-    expect(prompt).toContain("מילה אחת או שתיים");
-    expect(prompt).toContain("נקדי גם את השאלה עצמה");
+    expect(prompt).toContain("איתור פרט מפורש");
   });
 
   test("asks for a question answerable from the passage alone, with an expectedMeaning that describes meaning", () => {
-    const passage = { text: "טקסט.", readingLevel: "beginner" };
+    const passage = { text: "טקסט.", level: 1, sublevel: 1 };
 
     const prompt = buildQuestionPrompt({ passage });
 
@@ -95,24 +104,24 @@ describe("buildQuestionPrompt", () => {
     expect(prompt).toContain("לתאר את משמעות התשובה הנכונה");
   });
 
-  test("intermediate guidance asks for a short-phrase answer", () => {
-    const passage = { text: "טקסט.", readingLevel: "intermediate" };
+  test("2.4 guidance asks for explicit understanding plus light inference", () => {
+    const passage = { text: "טקסט.", level: 2, sublevel: 4 };
 
     const prompt = buildQuestionPrompt({ passage });
 
-    expect(prompt).toContain("ביטוי קצר");
+    expect(prompt).toContain("הבנה מפורשת + הסקה קלה");
   });
 
-  test("advanced guidance asks for understanding rather than fact retrieval", () => {
-    const passage = { text: "טקסט.", readingLevel: "advanced" };
+  test("4.4 guidance asks for combining explicit info, inference, and the main idea", () => {
+    const passage = { text: "טקסט.", level: 4, sublevel: 4 };
 
     const prompt = buildQuestionPrompt({ passage });
 
-    expect(prompt).toContain("הבנה כוללת");
+    expect(prompt).toContain("שילוב מידע מפורש, הסקה ורעיון מרכזי");
   });
 
-  test("throws for an unrecognized readingLevel", () => {
-    const passage = { text: "טקסט.", readingLevel: "expert" };
+  test("throws for an unrecognized level/sublevel combination", () => {
+    const passage = { text: "טקסט.", level: 5, sublevel: 1 };
 
     expect(() => buildQuestionPrompt({ passage })).toThrow();
   });

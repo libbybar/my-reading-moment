@@ -82,22 +82,47 @@ async function recordLogin(parentId) {
   );
 }
 
-// $inc keeps concurrent completions from clobbering each other.
-async function incrementCompletedStepCount(parentId, childId) {
-  const parent = await Parent.findOneAndUpdate(
-    { _id: parentId, "children._id": childId },
-    { $inc: { "children.$.learningProfile.completedStepCount": 1 } },
-    { returnDocument: "after", runValidators: true },
-  );
+// Called inside the TextResult transaction; keeps derived child state in sync.
+async function applyTextCompletionProgress(
+  parentId,
+  childId,
+  { incrementJourneyProgress, levelUpdate },
+  { session } = {},
+) {
+  const update = {};
+
+  if (incrementJourneyProgress) {
+    update.$inc = { "children.$.journeyProgress": 1 };
+  }
+
+  if (levelUpdate) {
+    update.$set = {
+      "children.$.learningProfile.currentLevel": levelUpdate.level,
+      "children.$.learningProfile.currentSublevel": levelUpdate.sublevel,
+    };
+  }
+
+  if (Object.keys(update).length === 0) {
+    // Preserve null as "child not found", not "nothing changed".
+    const parent = await Parent.findOne({ _id: parentId, "children._id": childId }, null, { session });
+
+    return parent ? parent.children.id(childId) : null;
+  }
+
+  const parent = await Parent.findOneAndUpdate({ _id: parentId, "children._id": childId }, update, {
+    returnDocument: "after",
+    runValidators: true,
+    session,
+  });
 
   return parent ? parent.children.id(childId) : null;
 }
 
-async function addLearningEvent(parentId, childId, event) {
+async function addLearningEvent(parentId, childId, event, { session } = {}) {
   const parent = await Parent.findOneAndUpdate(
     { _id: parentId, "children._id": childId },
     { $push: { "children.$.learningEvents": event } },
-    { returnDocument: "after", runValidators: true },
+    { returnDocument: "after", runValidators: true, session },
   );
 
   return parent ? parent.children.id(childId) : null;
@@ -111,7 +136,7 @@ export {
   addChild,
   updateChild,
   recordLogin,
-  incrementCompletedStepCount,
+  applyTextCompletionProgress,
   addLearningEvent,
   DuplicateEmailError,
 };

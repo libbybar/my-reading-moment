@@ -6,11 +6,10 @@ import App from '../../src/App'
 import { TEXT } from '../../src/constants/text'
 import { resolveText } from '../../src/constants/resolveText'
 import { theme } from '../../src/styles/theme'
-import { fetchChildProfiles, completeLearningPathStep } from '../../src/services/childProfileService'
+import { fetchChildProfiles } from '../../src/services/childProfileService'
 
 vi.mock('../../src/services/childProfileService', () => ({
   fetchChildProfiles: vi.fn(),
-  completeLearningPathStep: vi.fn(),
 }))
 
 vi.mock('../../src/constants/childAvatars', () => ({
@@ -51,23 +50,17 @@ function renderAppAtPath(path) {
   )
 }
 
-let completedStepCount
+let journeyProgress
 
 beforeEach(() => {
-  completedStepCount = 0
+  journeyProgress = 0
 
   fetchChildProfiles.mockReset()
   fetchChildProfiles.mockImplementation(() =>
     Promise.resolve({
-      childProfiles: [{ ...GENERIC_PROFILES[0], completedStepCount }],
+      childProfiles: [{ ...GENERIC_PROFILES[0], journeyProgress }],
     }),
   )
-
-  completeLearningPathStep.mockReset()
-  completeLearningPathStep.mockImplementation(() => {
-    completedStepCount += 1
-    return Promise.resolve({ ...GENERIC_PROFILES[0], completedStepCount })
-  })
 
   globalThis.fetch = vi.fn((url) => {
     if (url === '/api/reading-sessions/preview') {
@@ -75,7 +68,15 @@ beforeEach(() => {
     }
 
     if (url === '/api/reading-sessions/answers') {
-      return okJson({ questionId: EXERCISE.question.id, isCorrect: true, feedbackType: 'correct' })
+      // The server advances journeyProgress as a side effect of a successful
+      // answer now — no separate client call, so the test simulates that here.
+      journeyProgress += 1
+      return okJson({
+        questionId: EXERCISE.question.id,
+        isCorrect: true,
+        feedbackType: 'correct',
+        textOutcome: 'success',
+      })
     }
 
     return Promise.reject(new Error(`Unexpected fetch call to ${url}`))

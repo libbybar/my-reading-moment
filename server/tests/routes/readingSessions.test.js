@@ -28,7 +28,7 @@ describe("POST /api/reading-sessions/preview", () => {
     const { childId, cookie, child } = await createAuthenticatedParentWithChild({
       name: "Test Child",
       grammaticalGender: "female",
-      learningProfile: { readingLevel: passage.readingLevel, interests: [] },
+      learningProfile: { readingLevel: "beginner", interests: [] },
     });
 
     const response = await request(app)
@@ -58,7 +58,7 @@ describe("POST /api/reading-sessions/preview", () => {
     const { childId, cookie } = await createAuthenticatedParentWithChild({
       name: "Test Child",
       grammaticalGender: "female",
-      learningProfile: { readingLevel: passage.readingLevel, interests: [] },
+      learningProfile: { readingLevel: "beginner", interests: [] },
     });
 
     const response = await request(app)

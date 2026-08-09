@@ -32,7 +32,8 @@ The project currently includes:
 - Child profile management per parent account: add, edit, and select a child profile
 - A reading-session preview endpoint
 - A basic flow for selecting a child and requesting a reading exercise
-- Per-child learning-path progress and per-answer session history, persisted in MongoDB
+- Adaptive reading practice: each child has a `currentLevel`/`currentSublevel` (16 rungs total) that a server-owned Progression engine advances or lowers based on the outcome of recent texts
+- Per-child journey progress (a motivational, uncapped station path — separate from the reading-level Progression above) and a durable, canonical record of each completed text, persisted in MongoDB
 - Loading and error states
 - Reusable UI components
 - Automated client and server tests
@@ -45,7 +46,7 @@ Reading passages and comprehension questions are generated through a pluggable L
 - `mock` (default) — deterministic, no external calls; used for local development and by every automated test
 - `gemini` — real generation via the Google Gemini API, enabled locally with environment variables (see "LLM Provider Configuration" below)
 
-MongoDB persistence covers parent accounts, their child profiles, and each child's learning-path progress (`completedStepCount`) and per-answer session history (`learningEvents`) — none of this is mocked/in-memory anymore. The reading passage/question content itself is not stored — it's generated fresh per request by the LLM provider (mock or Gemini) — and the in-progress reading session (current question, asked-question history) lives in a short-lived in-memory store, not MongoDB.
+MongoDB persistence covers parent accounts, their child profiles (including `learningProfile.currentLevel`/`currentSublevel` and `journeyProgress`), a raw per-answer event log (`learningEvents`), and — in its own collection — a `TextResult` per completed text: the canonical, durable outcome (`success`/`failure`/`skipped`) that the Progression engine reads back to decide whether a child's reading level should change. None of this is mocked/in-memory. The reading passage/question content itself is not stored — it's generated fresh per request by the LLM provider (mock or Gemini) — and the in-progress reading session (current question, asked-question history, attempt count) lives in a short-lived, single-process in-memory store, not MongoDB. Finishing a text (a correct/final-incorrect answer, or an explicit skip) is one real MongoDB transaction spanning the learning-history write, the canonical result, and the derived progress fields — never a partial update.
 
 ## Project Structure
 

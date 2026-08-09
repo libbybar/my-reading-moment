@@ -108,7 +108,7 @@ describe('ChildHomePage', () => {
     await screen.findByText(ACTIVE_PROFILE.name)
 
     expect(screen.getAllByRole('button', { name: ACTIVE_STATION_ACCESSIBLE_NAME })).toHaveLength(1)
-    expect(screen.getAllByRole('group')).toHaveLength(11)
+    expect(screen.getAllByRole('group')).toHaveLength(3)
   })
 
   it('numbers the active station and exposes locked station labels', async () => {
@@ -133,7 +133,7 @@ describe('ChildHomePage', () => {
 
   it('renders step 1 as completed and step 2 as the new active station after one recorded completion', async () => {
     fetchChildProfiles.mockResolvedValue({
-      childProfiles: [{ ...ACTIVE_PROFILE, completedStepCount: 1 }],
+      childProfiles: [{ ...ACTIVE_PROFILE, journeyProgress: 1 }],
     })
 
     renderChildHomePage()
@@ -157,12 +157,25 @@ describe('ChildHomePage', () => {
       }),
     ).toBeInTheDocument()
 
-    expect(screen.getAllByRole('group')).toHaveLength(11)
+    expect(screen.getAllByRole('group')).toHaveLength(4)
+  })
+
+  it('renders an active station well past the old fixed 12-station cap, proving the path has no maximum', async () => {
+    fetchChildProfiles.mockResolvedValue({
+      childProfiles: [{ ...ACTIVE_PROFILE, journeyProgress: 20 }],
+    })
+
+    renderChildHomePage()
+
+    const activeButton = await screen.findByRole('button', {
+      name: `${TEXT.childHome.stepLabelPrefix} 21, ${TEXT.childHome.activeStationAccessibleLabel}`,
+    })
+    expect(activeButton).toHaveTextContent('21')
   })
 
   it('clicking the new active station after progress still navigates to /', async () => {
     fetchChildProfiles.mockResolvedValue({
-      childProfiles: [{ ...ACTIVE_PROFILE, completedStepCount: 1 }],
+      childProfiles: [{ ...ACTIVE_PROFILE, journeyProgress: 1 }],
     })
 
     renderChildHomePage()

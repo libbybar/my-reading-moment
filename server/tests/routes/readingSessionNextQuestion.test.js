@@ -1,6 +1,5 @@
 import request from "supertest";
 import app from "../../src/app.js";
-import mockPassages from "../../src/data/mockPassages.js";
 import readingSessionStore from "../../src/services/readingSessionStore.js";
 import * as testDb from "../support/testDb.js";
 import { createAuthenticatedParentWithChild } from "../support/testAuth.js";
@@ -8,11 +7,10 @@ import { createAuthenticatedParentWithChild } from "../support/testAuth.js";
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
 async function createSessionId() {
-  const [passage] = mockPassages;
   const { childId, cookie } = await createAuthenticatedParentWithChild({
     name: "Test Child",
     grammaticalGender: "female",
-    learningProfile: { readingLevel: passage.readingLevel, interests: [] },
+    learningProfile: { readingLevel: "beginner", interests: [] },
   });
 
   const previewResponse = await request(app)
