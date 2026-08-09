@@ -26,6 +26,15 @@ const ChildSchema = new mongoose.Schema({
     type: LearningProfileSchema,
     required: true,
   },
+  // Motivational "journey path" position — deliberately NOT part of learningProfile:
+  // it advances on every successful text regardless of whether Learning Progression
+  // (level/sublevel) changes, and has no final/maximum value baked into the model.
+  journeyProgress: {
+    type: Number,
+    required: true,
+    default: 0,
+    min: 0,
+  },
   learningEvents: [LearningEventSchema],
   parentNotes: [ParentNoteSchema],
   aiSummary: AiSummarySchema,

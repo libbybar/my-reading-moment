@@ -21,7 +21,8 @@ import {
   SwitchChildAction,
 } from '../styles/ChildHomePageStyle'
 
-const TOTAL_STATIONS = 12
+// Visible locked stations after the active one, not a journey cap.
+const STATIONS_LOOKAHEAD = 3
 
 const STATIONS_PER_ROW = 4
 
@@ -119,10 +120,11 @@ function ChildHomePage() {
     return <Navigate to="/children" replace />
   }
 
-  const completedStepCount = activeProfile.completedStepCount ?? 0
-  const currentActiveStep = completedStepCount + 1
+  const journeyProgress = activeProfile.journeyProgress ?? 0
+  const currentActiveStep = journeyProgress + 1
+  const stationsToRender = currentActiveStep + STATIONS_LOOKAHEAD
 
-  const stations = Array.from({ length: TOTAL_STATIONS }, (_, index) => {
+  const stations = Array.from({ length: stationsToRender }, (_, index) => {
     const stepNumber = index + 1
     let status = 'locked'
 

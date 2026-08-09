@@ -11,5 +11,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './tests/support/setup.js',
+    coverage: {
+      reporter: ['text', 'html', 'lcov', 'clover', 'json'],
+    },
   },
 })

@@ -5,14 +5,9 @@ import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from '../../src/pages/ReadingSessionPage'
 import { ActiveChildProvider } from '../../src/context/ActiveChildProvider'
-import { completeLearningPathStep } from '../../src/services/childProfileService'
 import { TEXT } from '../../src/constants/text'
 import { resolveText } from '../../src/constants/resolveText'
 import { theme } from '../../src/styles/theme'
-
-vi.mock('../../src/services/childProfileService', () => ({
-  completeLearningPathStep: vi.fn(),
-}))
 
 const LEGACY_QUESTION_TEXT = 'LEGACY TEXT — MUST NOT BE USED'
 
@@ -131,9 +126,16 @@ async function driveThreeIncorrectAttemptsToLimit() {
 
   const answersMock = vi
     .fn()
-    .mockImplementationOnce(() => okJson({ questionId: QUESTION_1.id, isCorrect: false, feedbackType: 'retry' }))
-    .mockImplementationOnce(() => okJson({ questionId: QUESTION_2.id, isCorrect: false, feedbackType: 'retry' }))
-    .mockImplementationOnce(() => okJson({ questionId: QUESTION_3.id, isCorrect: false, feedbackType: 'retry' }))
+    .mockImplementationOnce(() =>
+      okJson({ questionId: QUESTION_1.id, isCorrect: false, feedbackType: 'retry', textOutcome: 'continues' }),
+    )
+    .mockImplementationOnce(() =>
+      okJson({ questionId: QUESTION_2.id, isCorrect: false, feedbackType: 'retry', textOutcome: 'continues' }),
+    )
+    .mockImplementationOnce(() =>
+      // The server determines the attempt limit — the 3rd wrong answer is where it says so.
+      okJson({ questionId: QUESTION_3.id, isCorrect: false, feedbackType: 'retry', textOutcome: 'failure' }),
+    )
 
   mockFetchRoutes({
     preview: () => okJson(mockExercise),
@@ -165,7 +167,13 @@ async function driveThreeIncorrectAttemptsToLimit() {
 async function renderInRetryState(exercise, nextQuestion) {
   await renderWithExerciseLoaded(
     exercise,
-    () => okJson({ questionId: exercise.question.id, isCorrect: false, feedbackType: 'retry' }),
+    () =>
+      okJson({
+        questionId: exercise.question.id,
+        isCorrect: false,
+        feedbackType: 'retry',
+        textOutcome: 'continues',
+      }),
     nextQuestion,
   )
 
@@ -178,10 +186,6 @@ async function renderInRetryState(exercise, nextQuestion) {
 
 beforeEach(() => {
   globalThis.fetch = vi.fn()
-  // vi.restoreAllMocks() (afterEach) only restores spies; a plain vi.fn()
-  // from a vi.mock factory keeps its call history unless cleared here.
-  completeLearningPathStep.mockReset()
-  completeLearningPathStep.mockResolvedValue({})
 })
 
 afterEach(() => {
@@ -310,7 +314,7 @@ describe('ReadingSessionPage', () => {
     )
     expect(answerSubmissionCalls).toHaveLength(1)
 
-    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }))
   })
 
   it('submits a blank or whitespace-only answer unchanged', async () => {
@@ -342,7 +346,7 @@ describe('ReadingSessionPage', () => {
     expect(checkingButton).toBeDisabled()
     expect(getAnswerField()).toBeDisabled()
 
-    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }))
   })
 
   it('does not call the service again on a second submit while checking', async () => {
@@ -362,12 +366,12 @@ describe('ReadingSessionPage', () => {
     )
     expect(answerSubmissionCalls).toHaveLength(1)
 
-    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }))
   })
 
   it('displays the resolved correct-feedback text on a correct result', async () => {
     await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -379,7 +383,7 @@ describe('ReadingSessionPage', () => {
 
   it('shows a return-to-path action alongside the correct-feedback text', async () => {
     await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -389,9 +393,9 @@ describe('ReadingSessionPage', () => {
     expect(getReturnToPathButton()).toBeInTheDocument()
   })
 
-  it('clicking the return-to-path action navigates to /child-home and records one completed step for the active child', async () => {
+  it('clicking the return-to-path action navigates to /child-home', async () => {
     await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -400,13 +404,11 @@ describe('ReadingSessionPage', () => {
     fireEvent.click(getReturnToPathButton())
 
     expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
-    expect(completeLearningPathStep).toHaveBeenCalledWith(ACTIVE_CHILD_ID)
-    expect(completeLearningPathStep).toHaveBeenCalledTimes(1)
   })
 
-  it('uses a synchronous guard so a second return-to-path click cannot advance progress twice', async () => {
+  it('uses a synchronous guard so a second return-to-path click does not cause any issue', async () => {
     await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }),
+      okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -419,14 +421,12 @@ describe('ReadingSessionPage', () => {
     returnButton.disabled = false
     fireEvent.click(returnButton)
 
-    await screen.findByText('CHILD_HOME_SENTINEL')
-
-    expect(completeLearningPathStep).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
   })
 
   it('displays the resolved retry-feedback text on a retry result, with no input, button, or further requests', async () => {
     await renderWithExerciseLoaded(mockExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry' }),
+      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry', textOutcome: 'continues' }),
     )
 
     fireEvent.click(getSubmitButton())
@@ -497,6 +497,28 @@ describe('ReadingSessionPage', () => {
       'isCorrect true with feedbackType retry',
       { questionId: 'test-question-1', isCorrect: true, feedbackType: 'retry' },
     ],
+    [
+      'a missing textOutcome',
+      { questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' },
+    ],
+    [
+      'a textOutcome inconsistent with isCorrect',
+      {
+        questionId: 'test-question-1',
+        isCorrect: true,
+        feedbackType: 'correct',
+        textOutcome: 'continues',
+      },
+    ],
+    [
+      'an unrecognized textOutcome value',
+      {
+        questionId: 'test-question-1',
+        isCorrect: false,
+        feedbackType: 'retry',
+        textOutcome: 'not-a-real-outcome',
+      },
+    ],
   ])('enters the error state for %s, not correct or retry', async (_label, malformedResult) => {
     await renderWithExerciseLoaded(mockExercise, () => okJson(malformedResult))
 
@@ -537,7 +559,7 @@ describe('ReadingSessionPage', () => {
     )
     expect(answerSubmissionCalls).toHaveLength(1)
 
-    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct' }))
+    resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }))
   })
 
   it('renders the localized fallback instead of an empty question section when question is null', async () => {
@@ -586,7 +608,7 @@ describe('ReadingSessionPage', () => {
   it('resolves female answer-cycle text from a female child fixture', async () => {
     const femaleExercise = buildExercise('female')
     await renderWithExerciseLoaded(femaleExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry' }),
+      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry', textOutcome: 'continues' }),
     )
 
     expect(getAnswerField('female')).toHaveAttribute(
@@ -606,7 +628,7 @@ describe('ReadingSessionPage', () => {
   it('resolves male answer-cycle text from a male child fixture, with no gender fallback', async () => {
     const maleExercise = buildExercise('male')
     await renderWithExerciseLoaded(maleExercise, () =>
-      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry' }),
+      okJson({ questionId: 'test-question-1', isCorrect: false, feedbackType: 'retry', textOutcome: 'continues' }),
     )
 
     const femaleText = resolveText('readingSession.answerInputPlaceholder', {
@@ -857,16 +879,15 @@ describe('ReadingSessionPage', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('returning to the path from the attempt limit navigates home without advancing progress', async () => {
+  it('returning to the path from the attempt limit navigates home', async () => {
     await driveThreeIncorrectAttemptsToLimit()
 
     fireEvent.click(getReturnToPathButton())
 
     expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
-    expect(completeLearningPathStep).not.toHaveBeenCalled()
   })
 
-  it('uses the same synchronous guard so a second return-to-path click from the attempt limit cannot advance progress', async () => {
+  it('uses the same synchronous guard so a second return-to-path click from the attempt limit does not cause any issue', async () => {
     await driveThreeIncorrectAttemptsToLimit()
 
     const returnButton = getReturnToPathButton()
@@ -875,8 +896,6 @@ describe('ReadingSessionPage', () => {
     returnButton.disabled = false
     fireEvent.click(returnButton)
 
-    await screen.findByText('CHILD_HOME_SENTINEL')
-
-    expect(completeLearningPathStep).not.toHaveBeenCalled()
+    expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
   })
 })

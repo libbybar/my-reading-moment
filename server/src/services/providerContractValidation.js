@@ -46,7 +46,7 @@ function isValidGeneratedQuestion(question, { passageId, askedQuestionIds }) {
   return !askedQuestionIds.includes(question.id);
 }
 
-function isValidGeneratedPassage(passage, expectedReadingLevel) {
+function isValidGeneratedPassage(passage, expectedLevel, expectedSublevel) {
   if (!passage || typeof passage !== "object") {
     return false;
   }
@@ -55,12 +55,13 @@ function isValidGeneratedPassage(passage, expectedReadingLevel) {
     !isNonBlankString(passage.id) ||
     !isNonBlankString(passage.title) ||
     !isNonBlankString(passage.text) ||
-    !isNonBlankString(passage.readingLevel)
+    typeof passage.level !== "number" ||
+    typeof passage.sublevel !== "number"
   ) {
     return false;
   }
 
-  return passage.readingLevel === expectedReadingLevel;
+  return passage.level === expectedLevel && passage.sublevel === expectedSublevel;
 }
 
 export { isValidEvaluationResult, isValidGeneratedQuestion, isValidGeneratedPassage };

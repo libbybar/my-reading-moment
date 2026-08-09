@@ -50,7 +50,7 @@ export const LOCALIZED_TEXT = {
       genderFieldLabel: 'מגדר דקדוקי',
       genderFemaleOption: 'נקבה',
       genderMaleOption: 'זכר',
-      readingLevelFieldLabel: 'רמת קריאה',
+      readingLevelFieldLabel: 'רמת קריאה התחלתית',
       readingLevelBeginnerOption: 'מתחיל/ה',
       readingLevelIntermediateOption: 'בינוני/ת',
       readingLevelAdvancedOption: 'מתקדם/ת',

@@ -21,7 +21,8 @@ const validPassage = {
   id: "stub-passage",
   title: "Stub Passage Title",
   text: "Stub passage text that does not exist in mockPassages.",
-  readingLevel: "beginner",
+  level: 1,
+  sublevel: 1,
 };
 
 const previewFailureBody = { error: "Failed to generate a reading question" };
@@ -62,7 +63,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
     expect(JSON.stringify(response.body)).not.toContain("provider exploded");
   }
 
-  test("calls generatePassage with the selected child's readingLevel and interests", async () => {
+  test("calls generatePassage with the selected child's currentLevel/currentSublevel and interests", async () => {
     const { childId, cookie, child } = await createChildAndCookie();
     llmProvider.generatePassage.mockResolvedValue(validPassage);
     llmProvider.generateQuestion.mockResolvedValue({ status: "exhausted" });
@@ -73,7 +74,8 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
       .send({ childId });
 
     expect(llmProvider.generatePassage).toHaveBeenCalledWith({
-      readingLevel: child.learningProfile.readingLevel,
+      level: child.learningProfile.currentLevel,
+      sublevel: child.learningProfile.currentSublevel,
       interests: child.learningProfile.interests,
     });
   });
@@ -97,7 +99,7 @@ describe("POST /api/reading-sessions/preview (provider integration)", () => {
     ["a blank id", { ...validPassage, id: "   " }],
     ["a missing title", { ...validPassage, title: undefined }],
     ["a blank text", { ...validPassage, text: "   " }],
-    ["a mismatched readingLevel", { ...validPassage, readingLevel: "intermediate" }],
+    ["a mismatched level", { ...validPassage, level: 2 }],
     ["a passage that is not an object", "not-a-passage"],
   ])(
     "returns an error response for %s, without calling generateQuestion",

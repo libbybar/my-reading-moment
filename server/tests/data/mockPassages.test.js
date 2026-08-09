@@ -1,4 +1,5 @@
 import mockPassages from "../../src/data/mockPassages.js";
+import { isValidLevel, isValidSublevel } from "../../src/data/readingLevelSpec.js";
 
 function expectNonBlankString(receivedString) {
   expect(typeof receivedString).toBe("string");
@@ -15,7 +16,8 @@ describe("mockPassages", () => {
       expectNonBlankString(passage.id);
       expectNonBlankString(passage.title);
       expectNonBlankString(passage.text);
-      expectNonBlankString(passage.readingLevel);
+      expect(isValidLevel(passage.level)).toBe(true);
+      expect(isValidSublevel(passage.sublevel)).toBe(true);
       expectNonBlankString(passage.readingGame?.instruction);
       expect(Array.isArray(passage.questions)).toBe(true);
       expect(passage.questions.length).toBeGreaterThan(0);

@@ -1,4 +1,5 @@
 import mockPassages from "../../data/mockPassages.js";
+import { isValidLevel, isValidSublevel, getReadingLevelSpec } from "../../data/readingLevelSpec.js";
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -16,27 +17,55 @@ function normalizeForComparison(value) {
     .trim();
 }
 
-async function generatePassage({ readingLevel, interests = [] }) {
-  if (!isNonBlankString(readingLevel)) {
-    throw new Error("generatePassage requires a non-blank readingLevel");
+// Hand-authored mocks cover only a few rungs; synthesize the rest so progression
+// can exercise all 16 level/sublevel combinations.
+function synthesizePassage(level, sublevel) {
+  const spec = getReadingLevelSpec(level, sublevel);
+  const sentence = "גאיה קראה ספר.";
+  const text = Array.from({ length: spec.textLengthSentences.min }, () => sentence).join(" ");
+
+  return {
+    id: `mock-synthesized-${level}-${sublevel}`,
+    title: `קטע לרמה ${level}.${sublevel}`,
+    text,
+    level,
+    sublevel,
+  };
+}
+
+function synthesizeQuestion(passage) {
+  return {
+    id: `${passage.id}-q1`,
+    passageId: passage.id,
+    prompt: "מי קראה ספר?",
+    expectedMeaning: "גאיה",
+  };
+}
+
+async function generatePassage({ level, sublevel, interests = [] }) {
+  if (!isValidLevel(level) || !isValidSublevel(sublevel)) {
+    throw new Error("generatePassage requires a valid level and sublevel");
   }
 
   if (!Array.isArray(interests)) {
     throw new Error("generatePassage requires interests to be an array");
   }
 
-  const passage = mockPassages.find((candidate) => candidate.readingLevel === readingLevel);
+  const passage = mockPassages.find(
+    (candidate) => candidate.level === level && candidate.sublevel === sublevel,
+  );
 
-  if (!passage) {
-    throw new Error(`No mock passage available for readingLevel: ${readingLevel}`);
+  if (passage) {
+    return {
+      id: passage.id,
+      title: passage.title,
+      text: passage.text,
+      level: passage.level,
+      sublevel: passage.sublevel,
+    };
   }
 
-  return {
-    id: passage.id,
-    title: passage.title,
-    text: passage.text,
-    readingLevel: passage.readingLevel,
-  };
+  return synthesizePassage(level, sublevel);
 }
 
 async function generateQuestion({ passage, askedQuestionIds = [] }) {
@@ -44,9 +73,10 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
     !passage ||
     !isNonBlankString(passage.id) ||
     !isNonBlankString(passage.text) ||
-    !isNonBlankString(passage.readingLevel)
+    !isValidLevel(passage.level) ||
+    !isValidSublevel(passage.sublevel)
   ) {
-    throw new Error("generateQuestion requires a passage with id, text, and readingLevel");
+    throw new Error("generateQuestion requires a passage with id, text, level, and sublevel");
   }
 
   if (!Array.isArray(askedQuestionIds) || !askedQuestionIds.every(isNonBlankString)) {
@@ -54,7 +84,7 @@ async function generateQuestion({ passage, askedQuestionIds = [] }) {
   }
 
   const seedPassage = mockPassages.find((candidate) => candidate.id === passage.id);
-  const candidateQuestions = seedPassage ? seedPassage.questions : [];
+  const candidateQuestions = seedPassage ? seedPassage.questions : [synthesizeQuestion(passage)];
 
   const question = candidateQuestions.find(
     (candidate) => !askedQuestionIds.includes(candidate.id),

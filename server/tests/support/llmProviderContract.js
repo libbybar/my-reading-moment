@@ -1,43 +1,55 @@
-function runLlmProviderContractTests(provider, { passage, readingLevel }) {
+function runLlmProviderContractTests(provider, { passage, level, sublevel }) {
   describe("generatePassage", () => {
-    test("resolves a passage with the required shape for a supported reading level", async () => {
-      const result = await provider.generatePassage({ readingLevel, interests: [] });
+    test("resolves a passage with the required shape for a supported level/sublevel", async () => {
+      const result = await provider.generatePassage({ level, sublevel, interests: [] });
 
       expect(result).toEqual(
         expect.objectContaining({
           id: expect.any(String),
           title: expect.any(String),
           text: expect.any(String),
-          readingLevel,
+          level,
+          sublevel,
         }),
       );
     });
 
     test("defaults interests to an empty array when omitted", async () => {
-      const result = await provider.generatePassage({ readingLevel });
+      const result = await provider.generatePassage({ level, sublevel });
 
-      expect(result.readingLevel).toBe(readingLevel);
+      expect(result.level).toBe(level);
+      expect(result.sublevel).toBe(sublevel);
     });
 
-    test("rejects when readingLevel is missing", async () => {
-      await expect(provider.generatePassage({ interests: [] })).rejects.toThrow();
+    test("rejects when level is missing", async () => {
+      await expect(provider.generatePassage({ sublevel, interests: [] })).rejects.toThrow();
     });
 
-    test("rejects when readingLevel is not a string", async () => {
+    test("rejects when level is not a number", async () => {
       await expect(
-        provider.generatePassage({ readingLevel: 123, interests: [] }),
+        provider.generatePassage({ level: "1", sublevel, interests: [] }),
       ).rejects.toThrow();
     });
 
-    test("rejects when readingLevel is blank", async () => {
+    test("rejects when level is out of range", async () => {
       await expect(
-        provider.generatePassage({ readingLevel: "   ", interests: [] }),
+        provider.generatePassage({ level: 5, sublevel, interests: [] }),
+      ).rejects.toThrow();
+    });
+
+    test("rejects when sublevel is missing", async () => {
+      await expect(provider.generatePassage({ level, interests: [] })).rejects.toThrow();
+    });
+
+    test("rejects when sublevel is out of range", async () => {
+      await expect(
+        provider.generatePassage({ level, sublevel: 5, interests: [] }),
       ).rejects.toThrow();
     });
 
     test("rejects when interests is not an array", async () => {
       await expect(
-        provider.generatePassage({ readingLevel, interests: "not-an-array" }),
+        provider.generatePassage({ level, sublevel, interests: "not-an-array" }),
       ).rejects.toThrow();
     });
   });
@@ -111,30 +123,30 @@ function runLlmProviderContractTests(provider, { passage, readingLevel }) {
       ).rejects.toThrow();
     });
 
-    test("rejects when passage readingLevel is missing", async () => {
+    test("rejects when passage level is missing", async () => {
       const passageWithoutLevel = { ...passage };
-      delete passageWithoutLevel.readingLevel;
+      delete passageWithoutLevel.level;
 
       await expect(
         provider.generateQuestion({ passage: passageWithoutLevel, askedQuestionIds: [] }),
       ).rejects.toThrow();
     });
 
-    test("rejects when passage readingLevel is not a string", async () => {
+    test("rejects when passage level is not a number", async () => {
       await expect(
         provider.generateQuestion({
-          passage: { ...passage, readingLevel: 123 },
+          passage: { ...passage, level: "1" },
           askedQuestionIds: [],
         }),
       ).rejects.toThrow();
     });
 
-    test("rejects when passage readingLevel is blank", async () => {
+    test("rejects when passage sublevel is missing", async () => {
+      const passageWithoutSublevel = { ...passage };
+      delete passageWithoutSublevel.sublevel;
+
       await expect(
-        provider.generateQuestion({
-          passage: { ...passage, readingLevel: "   " },
-          askedQuestionIds: [],
-        }),
+        provider.generateQuestion({ passage: passageWithoutSublevel, askedQuestionIds: [] }),
       ).rejects.toThrow();
     });
 
