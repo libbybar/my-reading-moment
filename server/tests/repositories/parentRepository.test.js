@@ -237,6 +237,165 @@ describe("parentRepository", () => {
     });
   });
 
+  describe("writes to an archived child", () => {
+    async function createArchivedChild() {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [] },
+            isArchived: true,
+          },
+        ],
+      });
+
+      return { parent, childId: parent.children[0]._id };
+    }
+
+    test("addLearningEvent returns null and appends nothing", async () => {
+      const { parent, childId } = await createArchivedChild();
+
+      const result = await parentRepository.addLearningEvent(parent._id, childId, {
+        type: "answer_attempt",
+        source: "system",
+      });
+
+      const stored = (await parentRepository.findById(parent._id)).children.id(childId);
+
+      expect(result).toBeNull();
+      expect(stored.learningEvents).toHaveLength(0);
+    });
+
+    test("applyTextCompletionProgress returns null and changes nothing when there is something to write", async () => {
+      const { parent, childId } = await createArchivedChild();
+
+      const result = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: true,
+        levelUpdate: { level: 2, sublevel: 1 },
+      });
+
+      const stored = (await parentRepository.findById(parent._id)).children.id(childId);
+
+      expect(result).toBeNull();
+      expect(stored.journeyProgress).toBe(0);
+    });
+
+    test("applyTextCompletionProgress returns null even when there is nothing to write", async () => {
+      const { parent, childId } = await createArchivedChild();
+
+      const result = await parentRepository.applyTextCompletionProgress(parent._id, childId, {
+        incrementJourneyProgress: false,
+        levelUpdate: null,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("updateChild", () => {
+    async function createChild(overrides = {}) {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [] },
+            ...overrides,
+          },
+        ],
+      });
+
+      return { parent, childId: parent.children[0]._id };
+    }
+
+    test("applies the given field updates and returns the updated child", async () => {
+      const { parent, childId } = await createChild();
+
+      const updatedChild = await parentRepository.updateChild(parent._id, childId, {
+        name: "שם חדש",
+      });
+
+      expect(updatedChild.name).toBe("שם חדש");
+    });
+
+    test("returns null for an archived child, exactly as for a non-owned one", async () => {
+      const { parent, childId } = await createChild({ isArchived: true });
+
+      const result = await parentRepository.updateChild(parent._id, childId, {
+        name: "ניסיון עדכון",
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("archiveChild", () => {
+    async function createChild() {
+      const parent = await parentRepository.create({
+        email: "parent@example.com",
+        passwordHash: "hash",
+        children: [
+          {
+            name: "גאיה",
+            grammaticalGender: "female",
+            learningProfile: { readingLevel: "beginner", interests: [] },
+          },
+        ],
+      });
+
+      return { parent, childId: parent.children[0]._id };
+    }
+
+    test("sets isArchived to true and returns the child", async () => {
+      const { parent, childId } = await createChild();
+
+      const archivedChild = await parentRepository.archiveChild(parent._id, childId);
+
+      expect(archivedChild.isArchived).toBe(true);
+    });
+
+    test("does not remove the child from the parent's children array", async () => {
+      const { parent, childId } = await createChild();
+
+      await parentRepository.archiveChild(parent._id, childId);
+
+      const found = await parentRepository.findById(parent._id);
+      expect(found.children).toHaveLength(1);
+      expect(found.children.id(childId)).not.toBeNull();
+    });
+
+    test("returns null when the child does not belong to the given parent", async () => {
+      const { childId } = await createChild();
+      const otherParent = await parentRepository.create({ email: "other@example.com", passwordHash: "hash" });
+
+      const result = await parentRepository.archiveChild(otherParent._id, childId);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null when the child is already archived", async () => {
+      const { parent, childId } = await createChild();
+      await parentRepository.archiveChild(parent._id, childId);
+
+      const result = await parentRepository.archiveChild(parent._id, childId);
+
+      expect(result).toBeNull();
+    });
+
+    test("returns null for a childId that doesn't exist", async () => {
+      const { parent } = await createChild();
+
+      const result = await parentRepository.archiveChild(parent._id, "507f1f77bcf86cd799439011");
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe("create", () => {
     test("persists a parent with a normalized (trimmed, lowercased) email", async () => {
       const parent = await parentRepository.create({

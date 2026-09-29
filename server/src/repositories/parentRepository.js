@@ -27,6 +27,18 @@ async function findById(parentId) {
   return Parent.findById(parentId);
 }
 
+async function findByIdWithParentPinHash(parentId) {
+  return Parent.findById(parentId).select("+parentPinHash");
+}
+
+async function findByIdWithPasswordHash(parentId) {
+  return Parent.findById(parentId).select("+passwordHash");
+}
+
+async function replaceParentPinHash(parentId, parentPinHash) {
+  return Parent.findByIdAndUpdate(parentId, { $set: { parentPinHash } }, { returnDocument: "after" });
+}
+
 async function create({ email, passwordHash, children = [] }) {
   try {
     return await Parent.create({ email: normalizeEmail(email), passwordHash, children });
@@ -48,7 +60,10 @@ async function addChild(parentId, child) {
   );
 }
 
-// The compound filter enforces parent/child ownership.
+// The compound filter enforces parent/child ownership. $elemMatch (not two
+// separate top-level "children.x" conditions) is required so isArchived is
+// checked on the *same* array element as _id — an archived child must be
+// exactly as unreachable here as one that doesn't belong to this parent.
 async function updateChild(parentId, childId, updates) {
   const setFields = {};
 
@@ -64,10 +79,32 @@ async function updateChild(parentId, childId, updates) {
   if (updates.interests !== undefined) {
     setFields["children.$.learningProfile.interests"] = updates.interests;
   }
+  if (updates.avatarId !== undefined) {
+    setFields["children.$.avatarId"] = updates.avatarId;
+  }
 
   const parent = await Parent.findOneAndUpdate(
-    { _id: parentId, "children._id": childId },
+    { _id: parentId, children: { $elemMatch: { _id: childId, isArchived: { $ne: true } } } },
     { $set: setFields },
+    { returnDocument: "after", runValidators: true },
+  );
+
+  return parent ? parent.children.id(childId) : null;
+}
+
+// An archived child must be as unreachable as an unowned one, so a session
+// that outlives the archive can't keep writing history or progress.
+function activeChildFilter(parentId, childId) {
+  return { _id: parentId, children: { $elemMatch: { _id: childId, isArchived: { $ne: true } } } };
+}
+
+// Soft delete: flips isArchived rather than pulling the child out of the
+// array, so TextResult/learningEvents history stays intact. Same
+// ownership-scoped filter as updateChild.
+async function archiveChild(parentId, childId) {
+  const parent = await Parent.findOneAndUpdate(
+    activeChildFilter(parentId, childId),
+    { $set: { "children.$.isArchived": true } },
     { returnDocument: "after", runValidators: true },
   );
 
@@ -104,12 +141,12 @@ async function applyTextCompletionProgress(
 
   if (Object.keys(update).length === 0) {
     // Preserve null as "child not found", not "nothing changed".
-    const parent = await Parent.findOne({ _id: parentId, "children._id": childId }, null, { session });
+    const parent = await Parent.findOne(activeChildFilter(parentId, childId), null, { session });
 
     return parent ? parent.children.id(childId) : null;
   }
 
-  const parent = await Parent.findOneAndUpdate({ _id: parentId, "children._id": childId }, update, {
+  const parent = await Parent.findOneAndUpdate(activeChildFilter(parentId, childId), update, {
     returnDocument: "after",
     runValidators: true,
     session,
@@ -120,7 +157,7 @@ async function applyTextCompletionProgress(
 
 async function addLearningEvent(parentId, childId, event, { session } = {}) {
   const parent = await Parent.findOneAndUpdate(
-    { _id: parentId, "children._id": childId },
+    activeChildFilter(parentId, childId),
     { $push: { "children.$.learningEvents": event } },
     { returnDocument: "after", runValidators: true, session },
   );
@@ -132,9 +169,13 @@ export {
   findByEmail,
   findByEmailWithPasswordHash,
   findById,
+  findByIdWithParentPinHash,
+  findByIdWithPasswordHash,
+  replaceParentPinHash,
   create,
   addChild,
   updateChild,
+  archiveChild,
   recordLogin,
   applyTextCompletionProgress,
   addLearningEvent,

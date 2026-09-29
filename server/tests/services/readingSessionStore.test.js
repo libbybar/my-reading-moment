@@ -251,6 +251,53 @@ describe("readingSessionStore", () => {
     });
   });
 
+  describe("discardActiveSessionForChild", () => {
+    function createSessionFor(parentId, childId) {
+      return readingSessionStore.createSession({
+        passage,
+        currentQuestion,
+        askedQuestionIds: [],
+        parentId,
+        childId,
+      });
+    }
+
+    test("removes the child's session so it can no longer be read or claimed", () => {
+      const created = createSessionFor("parent-1", "child-1");
+
+      expect(readingSessionStore.discardActiveSessionForChild("parent-1", "child-1")).toBe(true);
+      expect(readingSessionStore.getSession(created.sessionId)).toBeUndefined();
+      expect(readingSessionStore.tryClaimSession(created.sessionId)).toEqual({
+        ok: false,
+        reason: "not_found",
+      });
+      expect(readingSessionStore.hasActiveSessionForChild("parent-1", "child-1")).toBe(false);
+    });
+
+    test("also discards a locked (mid-request) session", () => {
+      const created = createSessionFor("parent-1", "child-1");
+      readingSessionStore.tryClaimSession(created.sessionId);
+
+      expect(readingSessionStore.discardActiveSessionForChild("parent-1", "child-1")).toBe(true);
+      expect(readingSessionStore.getSession(created.sessionId)).toBeUndefined();
+    });
+
+    test("returns false when the child has no active session", () => {
+      expect(readingSessionStore.discardActiveSessionForChild("parent-1", "child-1")).toBe(false);
+    });
+
+    test("leaves other children's sessions untouched, including the same parent's", () => {
+      createSessionFor("parent-1", "child-1");
+      const sibling = createSessionFor("parent-1", "child-2");
+      const otherParentsChild = createSessionFor("parent-2", "child-1");
+
+      readingSessionStore.discardActiveSessionForChild("parent-1", "child-1");
+
+      expect(readingSessionStore.getSession(sibling.sessionId)).toBeDefined();
+      expect(readingSessionStore.getSession(otherParentsChild.sessionId)).toBeDefined();
+    });
+  });
+
   describe("one active session per child", () => {
     test("hasActiveSessionForChild is false before any session exists", () => {
       expect(readingSessionStore.hasActiveSessionForChild("parent-1", "child-1")).toBe(false);

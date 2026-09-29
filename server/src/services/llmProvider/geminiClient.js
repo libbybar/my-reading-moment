@@ -21,15 +21,6 @@ function getGeminiClient() {
 }
 
 // Keep SDK-specific schema values at the Gemini boundary.
-const PASSAGE_RESPONSE_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    title: { type: Type.STRING },
-    text: { type: Type.STRING },
-  },
-  required: ["title", "text"],
-};
-
 const QUESTION_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -47,7 +38,13 @@ const EVALUATION_RESPONSE_SCHEMA = {
   required: ["isCorrect"],
 };
 
-async function generateJson({ prompt, responseSchema, label = "Gemini call", describeResult }) {
+async function generateJson({
+  prompt,
+  systemInstruction,
+  responseSchema,
+  label = "Gemini call",
+  describeResult,
+}) {
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const startTime = Date.now();
   let content;
@@ -57,8 +54,10 @@ async function generateJson({ prompt, responseSchema, label = "Gemini call", des
       model,
       contents: prompt,
       config: {
+        ...(systemInstruction ? { systemInstruction } : {}),
         responseMimeType: "application/json",
         responseSchema,
+        thinkingConfig: { thinkingBudget: 1 },
       },
     });
 
@@ -79,9 +78,45 @@ async function generateJson({ prompt, responseSchema, label = "Gemini call", des
   }
 }
 
+// Plain-text streaming, deliberately separate from generateJson: JSON mode
+// (responseSchema/responseMimeType) can't be read incrementally without a
+// partial-JSON parser, so the one caller that needs to stream (passage
+// generation) asks for plain text instead — see generatePassageStream in
+// geminiProvider.js, which owns interpreting that text as it arrives.
+async function* generateTextStream({ prompt, label = "Gemini call" }) {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const startTime = Date.now();
+  let totalLength = 0;
+
+  try {
+    const stream = await getGeminiClient().models.generateContentStream({
+      model,
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 1 },
+      },
+    });
+
+    for await (const chunk of stream) {
+      if (typeof chunk.text === "string" && chunk.text.length > 0) {
+        totalLength += chunk.text.length;
+        yield chunk.text;
+      }
+    }
+  } finally {
+    writeDebugLog({
+      tag: "LLM",
+      label,
+      model,
+      durationSeconds: Number(((Date.now() - startTime) / 1000).toFixed(2)),
+      textLength: totalLength,
+    });
+  }
+}
+
 export {
   generateJson,
-  PASSAGE_RESPONSE_SCHEMA,
+  generateTextStream,
   QUESTION_RESPONSE_SCHEMA,
   EVALUATION_RESPONSE_SCHEMA,
 };

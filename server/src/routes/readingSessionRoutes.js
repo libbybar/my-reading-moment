@@ -14,16 +14,55 @@ import {
   isValidGeneratedQuestion,
   isValidGeneratedPassage,
 } from "../services/providerContractValidation.js";
+import { sendErrorResponse, buildErrorResponseBody } from "../http/errorResponses.js";
 
 const router = express.Router();
 
-function respondToClaimError(res, error, conflictMessage) {
+// A real comprehension answer is a sentence, maybe two — well under this.
+// Bounds ordinary input hygiene and prompt-injection payload size.
+const MAX_ANSWER_TEXT_LENGTH = 300;
+
+// Ephemeral /preview background work; promises settle to {ok} instead of rejecting.
+const pendingQuestionPromises = new Map();
+
+function generateInitialQuestionInBackground(session, passage) {
+  const promise = llmProvider
+    .generateQuestion({ passage, askedQuestionIds: [] })
+    .then((result) => {
+      if (
+        result.status !== "ok" ||
+        !isValidGeneratedQuestion(result.question, { passageId: passage.id, askedQuestionIds: [] })
+      ) {
+        throw new Error(`generateQuestion returned an unusable result: ${result.status}`);
+      }
+
+      readingSessionStore.replaceCurrentQuestion(session.sessionId, result.question);
+
+      return { ok: true };
+    })
+    .catch((error) => {
+      logError("Background generateQuestion (POST /preview)", error);
+
+      return { ok: false };
+    });
+
+  pendingQuestionPromises.set(session.sessionId, promise);
+
+  promise.finally(() => {
+    pendingQuestionPromises.delete(session.sessionId);
+  });
+}
+
+function respondToClaimError(res, error, conflictResponseName) {
   if (error.reason === "not_found") {
-    return res.status(404).json({ error: "Session not found" });
+    return sendErrorResponse(res, 404, "readingSessionNotFound");
   }
 
-  return res.status(409).json({ error: conflictMessage });
+  return sendErrorResponse(res, 409, conflictResponseName);
 }
+
+// currentQuestion can be null while /preview's background question is still running.
+class QuestionNotReadyError extends Error {}
 
 function toSafeQuestion(question) {
   return {
@@ -45,6 +84,19 @@ function isValidGrammaticalGender(value) {
   return value === "female" || value === "male";
 }
 
+// Picks one random interest per generation, instead of sending the child's
+// whole interests list and relying on the model to vary its own pick —
+// buildInterestsLine (prompts.js) already tells the model "at most one," but
+// with no source of actual variety across calls, it consistently picked the
+// same (first) interest every time.
+function pickRandomInterest(interests) {
+  if (interests.length === 0) {
+    return [];
+  }
+
+  return [interests[Math.floor(Math.random() * interests.length)]];
+}
+
 function toPassageSnapshot(passage) {
   return {
     id: passage.id,
@@ -55,19 +107,28 @@ function toPassageSnapshot(passage) {
   };
 }
 
-// /preview resumes a child's existing active session after refresh/reopen.
-function toResumedPreviewResponse(session, child) {
-  const safeQuestion = toSafeQuestion(session.currentQuestion);
-
+// Terminal /preview event; question may still be null while background work runs.
+function toDoneEvent(session, child) {
   return {
+    type: "done",
     title: session.passage.title,
     story: session.passage.text,
-    questions: [safeQuestion.prompt],
     passageId: session.passage.id,
     sessionId: session.sessionId,
-    question: safeQuestion,
+    question: session.currentQuestion ? toSafeQuestion(session.currentQuestion) : null,
     grammaticalGender: child.grammaticalGender,
   };
+}
+
+function writeNdjsonEvent(res, event) {
+  res.write(`${JSON.stringify(event)}\n`);
+}
+
+// Success responses are NDJSON; pre-stream validation/auth failures stay JSON.
+function beginNdjsonResponse(res) {
+  res.status(200);
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Cache-Control", "no-cache");
 }
 
 function logError(label, error) {
@@ -80,11 +141,19 @@ function logError(label, error) {
   });
 }
 
-const PREVIEW_FAILURE_MESSAGE = "Failed to generate a reading question";
-const PREVIEW_BUSY_MESSAGE = "This reading exercise is not accepting requests right now";
+async function findActiveChild(parentId, childId) {
+  try {
+    const parent = await parentRepository.findById(parentId);
+    const child = parent?.children.id(childId);
 
-function respondPreviewBusy(res) {
-  return res.status(409).json({ error: PREVIEW_BUSY_MESSAGE });
+    return child && !child.isArchived ? child : null;
+  } catch {
+    return null;
+  }
+}
+
+function respondBusy(res) {
+  return sendErrorResponse(res, 409, "readingSessionBusy");
 }
 
 router.post("/preview", requireAuth, async (req, res) => {
@@ -97,34 +166,19 @@ router.post("/preview", requireAuth, async (req, res) => {
     const { childId } = req.body;
 
     if (typeof childId !== "string" || childId.trim().length === 0) {
-      return res.status(400).json({
-        error: "childId is required",
-      });
+      return sendErrorResponse(res, 400, "readingSessionChildIdRequired");
     }
 
-    // Scope lookup to the authenticated parent's own children.
-    let child;
+    const child = await findActiveChild(req.parentId, childId);
 
-    try {
-      const parent = await parentRepository.findById(req.parentId);
-
-      child = parent?.children.id(childId);
-    } catch {
-      // Malformed ids get the same response as unknown ids.
-      child = null;
-    }
-
+    // Unowned, unknown and archived children must be indistinguishable.
     if (!child) {
-      return res.status(404).json({
-        error: "Child not found",
-      });
+      return sendErrorResponse(res, 404, "childNotFound");
     }
 
     if (!isValidGrammaticalGender(child.grammaticalGender)) {
       // Do not leak invalid internal profile data through the API.
-      return res.status(500).json({
-        error: PREVIEW_FAILURE_MESSAGE,
-      });
+      return sendErrorResponse(res, 500, "readingSessionPreviewFailed");
     }
 
     // Resume only stable active sessions; locked ones are mid-mutation and may be stale.
@@ -132,49 +186,49 @@ router.post("/preview", requireAuth, async (req, res) => {
 
     if (existingSession) {
       if (existingSession.state !== "active") {
-        return respondPreviewBusy(res);
+        return respondBusy(res);
       }
 
-      return res.status(200).json(toResumedPreviewResponse(existingSession, child));
+      beginNdjsonResponse(res);
+      writeNdjsonEvent(res, toDoneEvent(existingSession, child));
+      return res.end();
     }
 
     try {
-      const passage = await llmProvider.generatePassage({
+      // After headers are sent, failures must be reported as NDJSON error events.
+      beginNdjsonResponse(res);
+
+      for await (const event of llmProvider.generatePassageStream({
         level: child.learningProfile.currentLevel,
         sublevel: child.learningProfile.currentSublevel,
-        interests: child.learningProfile.interests,
-      });
+        interests: pickRandomInterest(child.learningProfile.interests),
+      })) {
+        if (event.type === "title") {
+          writeNdjsonEvent(res, { type: "title", title: event.title });
+          continue;
+        }
 
-      if (
-        !isValidGeneratedPassage(
-          passage,
-          child.learningProfile.currentLevel,
-          child.learningProfile.currentSublevel,
-        )
-      ) {
-        throw new Error("generatePassage returned an invalid passage");
-      }
+        if (event.type === "chunk") {
+          writeNdjsonEvent(res, { type: "chunk", text: event.text });
+          continue;
+        }
 
-      const result = await llmProvider.generateQuestion({ passage, askedQuestionIds: [] });
+        const passage = event.passage;
 
-      let sessionId = null;
-      let safeQuestion = null;
-      let legacyQuestions;
-
-      if (result.status === "ok") {
         if (
-          !isValidGeneratedQuestion(result.question, {
-            passageId: passage.id,
-            askedQuestionIds: [],
-          })
+          !isValidGeneratedPassage(
+            passage,
+            child.learningProfile.currentLevel,
+            child.learningProfile.currentSublevel,
+          )
         ) {
-          throw new Error("generateQuestion returned an invalid question");
+          throw new Error("generatePassageStream returned an invalid passage");
         }
 
         const session = readingSessionStore.createSession({
           passage: toPassageSnapshot(passage),
-          currentQuestion: result.question,
-          askedQuestionIds: [result.question.id],
+          currentQuestion: null,
+          askedQuestionIds: [],
           parentId: req.parentId,
           childId,
           level: child.learningProfile.currentLevel,
@@ -182,40 +236,40 @@ router.post("/preview", requireAuth, async (req, res) => {
         });
 
         if (!session) {
-          // Narrow race: another /preview won after the earlier check.
+          // Narrow race: another /preview won; discard this streamed passage in favor of theirs.
           const wonByAnotherRequest = readingSessionStore.getActiveSessionForChild(req.parentId, childId);
 
           if (!wonByAnotherRequest || wonByAnotherRequest.state !== "active") {
-            return respondPreviewBusy(res);
+            writeNdjsonEvent(res, { type: "error", ...buildErrorResponseBody("readingSessionBusy") });
+            break;
           }
 
-          return res.status(200).json(toResumedPreviewResponse(wonByAnotherRequest, child));
+          writeNdjsonEvent(res, toDoneEvent(wonByAnotherRequest, child));
+          break;
         }
 
-        sessionId = session.sessionId;
-        safeQuestion = toSafeQuestion(result.question);
-        legacyQuestions = [safeQuestion.prompt];
-      } else if (result.status === "exhausted") {
-        legacyQuestions = [];
-      } else {
-        throw new Error(`generateQuestion returned an unexpected status: ${result.status}`);
+        // Re-check only after createSession: an archive during streaming had no session to discard.
+        if (!(await findActiveChild(req.parentId, childId))) {
+          readingSessionStore.discardActiveSessionForChild(req.parentId, childId);
+          writeNdjsonEvent(res, { type: "error", ...buildErrorResponseBody("childNotFound") });
+          break;
+        }
+
+        // Not awaited: the child sees the story immediately, the question is
+        // fetched on demand via POST /question once they're done reading.
+        generateInitialQuestionInBackground(session, passage);
+
+        writeNdjsonEvent(res, toDoneEvent(session, child));
       }
 
-      res.status(200).json({
-        title: passage.title,
-        story: passage.text,
-        // Legacy compatibility: new code should read `question`, not `questions`.
-        questions: legacyQuestions,
-        passageId: passage.id,
-        sessionId,
-        question: safeQuestion,
-        grammaticalGender: child.grammaticalGender,
-      });
+      res.end();
     } catch (error) {
       logError("POST /preview", error);
-      res.status(500).json({
-        error: PREVIEW_FAILURE_MESSAGE,
+      writeNdjsonEvent(res, {
+        type: "error",
+        ...buildErrorResponseBody("readingSessionPreviewFailed", { cause: error }),
       });
+      res.end();
     } finally {
       writeDebugLog({
         tag: "Route",
@@ -235,14 +289,21 @@ router.post("/answers", async (req, res) => {
 
     const { sessionId, answerText } = req.body;
 
-    if (typeof sessionId !== "string" || sessionId.length === 0 || typeof answerText !== "string") {
-      return res.status(400).json({
-        error: "sessionId and answerText are required",
-      });
+    if (
+      typeof sessionId !== "string" ||
+      sessionId.length === 0 ||
+      typeof answerText !== "string" ||
+      answerText.length > MAX_ANSWER_TEXT_LENGTH
+    ) {
+      return sendErrorResponse(res, 400, "readingSessionAnswerInvalidInput");
     }
 
     try {
       const { evaluation, textOutcome } = await withClaimedSession(sessionId, async (session) => {
+        if (!session.currentQuestion) {
+          throw new QuestionNotReadyError();
+        }
+
         const result = await llmProvider.evaluateAnswer({
           passage: session.passage,
           question: session.currentQuestion,
@@ -305,13 +366,15 @@ router.post("/answers", async (req, res) => {
       res.status(200).json({ ...toSafeEvaluationResult(evaluation), textOutcome });
     } catch (error) {
       if (error instanceof SessionClaimError) {
-        return respondToClaimError(res, error, "This reading exercise is not accepting answers right now");
+        return respondToClaimError(res, error, "readingSessionBusy");
+      }
+
+      if (error instanceof QuestionNotReadyError) {
+        return respondBusy(res);
       }
 
       logError("POST /answers", error);
-      res.status(500).json({
-        error: "Failed to evaluate the answer",
-      });
+      sendErrorResponse(res, 500, "readingSessionAnswerFailed", { cause: error });
     } finally {
       writeDebugLog({
         tag: "Route",
@@ -332,9 +395,7 @@ router.post("/skip", async (req, res) => {
     const { sessionId } = req.body;
 
     if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
-      return res.status(400).json({
-        error: "sessionId is required",
-      });
+      return sendErrorResponse(res, 400, "readingSessionSkipInvalidInput");
     }
 
     try {
@@ -354,13 +415,11 @@ router.post("/skip", async (req, res) => {
       res.status(200).json({ skipped: true });
     } catch (error) {
       if (error instanceof SessionClaimError) {
-        return respondToClaimError(res, error, "This reading exercise has already been finalized");
+        return respondToClaimError(res, error, "readingSessionSkipConflict");
       }
 
       logError("POST /skip", error);
-      res.status(500).json({
-        error: "Failed to skip the reading exercise",
-      });
+      sendErrorResponse(res, 500, "readingSessionSkipFailed", { cause: error });
     } finally {
       writeDebugLog({
         tag: "Route",
@@ -381,13 +440,19 @@ router.post("/next-question", async (req, res) => {
     const { sessionId } = req.body;
 
     if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
-      return res.status(400).json({
-        error: "sessionId is required",
-      });
+      return sendErrorResponse(res, 400, "readingSessionNextQuestionInvalidInput");
     }
 
     try {
       const response = await withClaimedSession(sessionId, async (session) => {
+        // /next-question replaces the current question during the retry cycle
+        // — it must not be used to generate the *first* one (that's what
+        // POST /question is for, and it's the only path claim-protected
+        // against generateInitialQuestionInBackground's own unprotected write).
+        if (!session.currentQuestion) {
+          throw new QuestionNotReadyError();
+        }
+
         const result = await llmProvider.generateQuestion({
           passage: session.passage,
           askedQuestionIds: session.askedQuestionIds,
@@ -419,17 +484,92 @@ router.post("/next-question", async (req, res) => {
       res.status(200).json(response);
     } catch (error) {
       if (error instanceof SessionClaimError) {
-        return respondToClaimError(res, error, "This reading exercise is not accepting requests right now");
+        return respondToClaimError(res, error, "readingSessionBusy");
+      }
+
+      if (error instanceof QuestionNotReadyError) {
+        return respondBusy(res);
       }
 
       logError("POST /next-question", error);
-      res.status(500).json({
-        error: "Failed to generate the next reading question",
-      });
+      sendErrorResponse(res, 500, "readingSessionNextQuestionFailed", { cause: error });
     } finally {
       writeDebugLog({
         tag: "Route",
         label: "POST /next-question",
+        durationSeconds: Number(((Date.now() - requestStartTime) / 1000).toFixed(2)),
+      });
+    }
+  });
+});
+
+router.post("/question", async (req, res) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
+  return runWithRequestId(requestId, async () => {
+    writeDebugLog({ tag: "Route", label: "POST /question received" });
+    const requestStartTime = Date.now();
+
+    const { sessionId } = req.body;
+
+    if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+      return sendErrorResponse(res, 400, "readingSessionQuestionInvalidInput");
+    }
+
+    try {
+      const response = await withClaimedSession(sessionId, async (session) => {
+        if (session.currentQuestion) {
+          return { question: toSafeQuestion(session.currentQuestion) };
+        }
+
+        const pending = pendingQuestionPromises.get(sessionId);
+
+        if (pending) {
+          const outcome = await pending;
+
+          if (!outcome.ok) {
+            // The failed background attempt is retried by a later /question call, not this one.
+            throw new Error("Initial question generation failed");
+          }
+
+          const updatedSession = readingSessionStore.getSession(sessionId);
+
+          return { question: toSafeQuestion(updatedSession.currentQuestion) };
+        }
+
+        // No generation in flight: attempt exactly one fresh question.
+        const result = await llmProvider.generateQuestion({
+          passage: session.passage,
+          askedQuestionIds: session.askedQuestionIds,
+        });
+
+        if (
+          result.status !== "ok" ||
+          !isValidGeneratedQuestion(result.question, {
+            passageId: session.passage.id,
+            askedQuestionIds: session.askedQuestionIds,
+          })
+        ) {
+          throw new Error(`generateQuestion returned an unusable result: ${result.status}`);
+        }
+
+        readingSessionStore.replaceCurrentQuestion(sessionId, result.question);
+
+        return { question: toSafeQuestion(result.question) };
+      });
+
+      res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof SessionClaimError) {
+        return respondToClaimError(res, error, "readingSessionBusy");
+      }
+
+      logError("POST /question", error);
+      sendErrorResponse(res, 500, "readingSessionQuestionFailed", { cause: error });
+    } finally {
+      writeDebugLog({
+        tag: "Route",
+        label: "POST /question",
         durationSeconds: Number(((Date.now() - requestStartTime) / 1000).toFixed(2)),
       });
     }

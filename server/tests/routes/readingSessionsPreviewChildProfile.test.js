@@ -9,6 +9,7 @@ const testDb = await import("../support/testDb.js");
 const { createAuthenticatedParent, createAuthenticatedParentWithChild } = await import(
   "../support/testAuth.js"
 );
+const { getFinalEvent } = await import("../support/readingSessions.js");
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
@@ -73,7 +74,7 @@ describe("POST /api/reading-sessions/preview (child profile grammaticalGender)",
       .send({ childId });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.grammaticalGender).toBe("male");
+    expect(getFinalEvent(response.text).grammaticalGender).toBe("male");
   });
 
   test("returns grammaticalGender sourced from the selected child profile (female)", async () => {
@@ -85,7 +86,7 @@ describe("POST /api/reading-sessions/preview (child profile grammaticalGender)",
       .send({ childId });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.grammaticalGender).toBe("female");
+    expect(getFinalEvent(response.text).grammaticalGender).toBe("female");
   });
 
   test("returns 500 when the selected child profile is missing grammaticalGender, without touching the provider or session store", async () => {
@@ -99,7 +100,10 @@ describe("POST /api/reading-sessions/preview (child profile grammaticalGender)",
       .send({ childId });
 
     expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: "Failed to generate a reading question" });
+    expect(response.body).toEqual({
+      error: "Failed to generate a reading question",
+      errorCode: "reading_session_preview_failed",
+    });
     expect(generateQuestionSpy).not.toHaveBeenCalled();
     expect(createSessionSpy).not.toHaveBeenCalled();
   });
@@ -115,7 +119,10 @@ describe("POST /api/reading-sessions/preview (child profile grammaticalGender)",
       .send({ childId });
 
     expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: "Failed to generate a reading question" });
+    expect(response.body).toEqual({
+      error: "Failed to generate a reading question",
+      errorCode: "reading_session_preview_failed",
+    });
     expect(generateQuestionSpy).not.toHaveBeenCalled();
     expect(createSessionSpy).not.toHaveBeenCalled();
   });

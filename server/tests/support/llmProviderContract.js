@@ -1,7 +1,29 @@
+// Drains a generatePassageStream async generator into its abstract parts —
+// deliberately generic (title/chunks/passage only), never asserting anything
+// about *how* a provider produces that shape (e.g. Gemini's title-first-line
+// convention is internal to geminiProvider.js, not part of this contract).
+async function drainPassageStream(provider, args) {
+  let title;
+  const chunks = [];
+  let passage;
+
+  for await (const event of provider.generatePassageStream(args)) {
+    if (event.type === "title") {
+      title = event.title;
+    } else if (event.type === "chunk") {
+      chunks.push(event.text);
+    } else if (event.type === "done") {
+      passage = event.passage;
+    }
+  }
+
+  return { title, text: chunks.join(""), passage };
+}
+
 function runLlmProviderContractTests(provider, { passage, level, sublevel }) {
-  describe("generatePassage", () => {
+  describe("generatePassageStream", () => {
     test("resolves a passage with the required shape for a supported level/sublevel", async () => {
-      const result = await provider.generatePassage({ level, sublevel, interests: [] });
+      const { passage: result } = await drainPassageStream(provider, { level, sublevel, interests: [] });
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -14,42 +36,53 @@ function runLlmProviderContractTests(provider, { passage, level, sublevel }) {
       );
     });
 
+    test("streams a title event and chunk events whose content matches the final passage", async () => {
+      const { title, text, passage: result } = await drainPassageStream(provider, {
+        level,
+        sublevel,
+        interests: [],
+      });
+
+      expect(title).toBe(result.title);
+      expect(text).toBe(result.text);
+    });
+
     test("defaults interests to an empty array when omitted", async () => {
-      const result = await provider.generatePassage({ level, sublevel });
+      const { passage: result } = await drainPassageStream(provider, { level, sublevel });
 
       expect(result.level).toBe(level);
       expect(result.sublevel).toBe(sublevel);
     });
 
     test("rejects when level is missing", async () => {
-      await expect(provider.generatePassage({ sublevel, interests: [] })).rejects.toThrow();
+      await expect(drainPassageStream(provider, { sublevel, interests: [] })).rejects.toThrow();
     });
 
     test("rejects when level is not a number", async () => {
       await expect(
-        provider.generatePassage({ level: "1", sublevel, interests: [] }),
+        drainPassageStream(provider, { level: "1", sublevel, interests: [] }),
       ).rejects.toThrow();
     });
 
     test("rejects when level is out of range", async () => {
       await expect(
-        provider.generatePassage({ level: 5, sublevel, interests: [] }),
+        drainPassageStream(provider, { level: 5, sublevel, interests: [] }),
       ).rejects.toThrow();
     });
 
     test("rejects when sublevel is missing", async () => {
-      await expect(provider.generatePassage({ level, interests: [] })).rejects.toThrow();
+      await expect(drainPassageStream(provider, { level, interests: [] })).rejects.toThrow();
     });
 
     test("rejects when sublevel is out of range", async () => {
       await expect(
-        provider.generatePassage({ level, sublevel: 5, interests: [] }),
+        drainPassageStream(provider, { level, sublevel: 5, interests: [] }),
       ).rejects.toThrow();
     });
 
     test("rejects when interests is not an array", async () => {
       await expect(
-        provider.generatePassage({ level, sublevel, interests: "not-an-array" }),
+        drainPassageStream(provider, { level, sublevel, interests: "not-an-array" }),
       ).rejects.toThrow();
     });
   });

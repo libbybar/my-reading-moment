@@ -11,6 +11,24 @@ const passageFixture = {
   sublevel: seedPassage.sublevel,
 };
 
+async function drainPassage(args) {
+  let title;
+  const chunks = [];
+  let passage;
+
+  for await (const event of mockProvider.generatePassageStream(args)) {
+    if (event.type === "title") {
+      title = event.title;
+    } else if (event.type === "chunk") {
+      chunks.push(event.text);
+    } else if (event.type === "done") {
+      passage = event.passage;
+    }
+  }
+
+  return { title, chunks, text: chunks.join(""), passage };
+}
+
 describe("mockProvider", () => {
   runLlmProviderContractTests(mockProvider, {
     passage: passageFixture,
@@ -187,7 +205,7 @@ describe("mockProvider", () => {
     test("selects the seeded passage matching the requested level/sublevel", async () => {
       const [firstSeedPassage, secondSeedPassage] = mockPassages;
 
-      const firstResult = await mockProvider.generatePassage({
+      const { passage: firstResult } = await drainPassage({
         level: firstSeedPassage.level,
         sublevel: firstSeedPassage.sublevel,
         interests: [],
@@ -195,7 +213,7 @@ describe("mockProvider", () => {
 
       expect(firstResult.id).toBe(firstSeedPassage.id);
 
-      const secondResult = await mockProvider.generatePassage({
+      const { passage: secondResult } = await drainPassage({
         level: secondSeedPassage.level,
         sublevel: secondSeedPassage.sublevel,
         interests: [],
@@ -205,13 +223,13 @@ describe("mockProvider", () => {
     });
 
     test("ignores interests when selecting a passage", async () => {
-      const withoutInterests = await mockProvider.generatePassage({
+      const { passage: withoutInterests } = await drainPassage({
         level: seedPassage.level,
         sublevel: seedPassage.sublevel,
         interests: [],
       });
 
-      const withInterests = await mockProvider.generatePassage({
+      const { passage: withInterests } = await drainPassage({
         level: seedPassage.level,
         sublevel: seedPassage.sublevel,
         interests: ["חלל", "רובוטים"],
@@ -221,7 +239,7 @@ describe("mockProvider", () => {
     });
 
     test("synthesizes a deterministic passage for a level/sublevel with no seed data, sized to that rung's spec", async () => {
-      const result = await mockProvider.generatePassage({ level: 4, sublevel: 4, interests: [] });
+      const { passage: result } = await drainPassage({ level: 4, sublevel: 4, interests: [] });
 
       expect(result).toMatchObject({ level: 4, sublevel: 4 });
       expect(typeof result.id).toBe("string");
@@ -233,10 +251,33 @@ describe("mockProvider", () => {
     });
 
     test("synthesizing the same level/sublevel twice is deterministic (same id)", async () => {
-      const first = await mockProvider.generatePassage({ level: 3, sublevel: 3, interests: [] });
-      const second = await mockProvider.generatePassage({ level: 3, sublevel: 3, interests: [] });
+      const { passage: first } = await drainPassage({ level: 3, sublevel: 3, interests: [] });
+      const { passage: second } = await drainPassage({ level: 3, sublevel: 3, interests: [] });
 
       expect(first.id).toBe(second.id);
+    });
+
+    test("streams the title event before any chunk events, and chunks join back into the exact seeded text", async () => {
+      const events = [];
+
+      for await (const event of mockProvider.generatePassageStream({
+        level: seedPassage.level,
+        sublevel: seedPassage.sublevel,
+        interests: [],
+      })) {
+        events.push(event);
+      }
+
+      expect(events[0]).toEqual({ type: "title", title: seedPassage.title });
+      expect(events[events.length - 1]).toEqual({
+        type: "done",
+        passage: expect.objectContaining({ id: seedPassage.id, title: seedPassage.title }),
+      });
+
+      const chunkEvents = events.slice(1, -1);
+      expect(chunkEvents.length).toBeGreaterThan(1); // more than one word — genuinely chunked
+      expect(chunkEvents.every((event) => event.type === "chunk")).toBe(true);
+      expect(chunkEvents.map((event) => event.text).join("")).toBe(seedPassage.text);
     });
   });
 });

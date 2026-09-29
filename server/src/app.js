@@ -7,6 +7,8 @@ import healthRoutes from "./routes/healthRoutes.js";
 import readingSessionRoutes from "./routes/readingSessionRoutes.js";
 import childProfileRoutes from "./routes/childProfileRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import parentZoneRoutes from "./routes/parentZoneRoutes.js";
+import { sendErrorResponse } from "./http/errorResponses.js";
 
 const app = express();
 
@@ -27,11 +29,10 @@ app.use("/api/health", healthRoutes);
 app.use("/api/reading-sessions", readingSessionRoutes);
 app.use("/api/child-profiles", childProfileRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/parent-zone", parentZoneRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({
-    error: "Route not found",
-  });
+  sendErrorResponse(res, 404, "routeNotFound");
 });
 
 export default app;

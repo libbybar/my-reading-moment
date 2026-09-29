@@ -4,6 +4,7 @@ import app from "../../src/app.js";
 import readingSessionStore from "../../src/services/readingSessionStore.js";
 import * as testDb from "../support/testDb.js";
 import { createAuthenticatedParentWithChild } from "../support/testAuth.js";
+import { getFinalEvent } from "../support/readingSessions.js";
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
@@ -41,7 +42,8 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
       .send({ childId });
 
     expect(firstResponse.statusCode).toBe(200);
-    const firstSessionId = firstResponse.body.sessionId;
+    const firstDoneEvent = getFinalEvent(firstResponse.text);
+    const firstSessionId = firstDoneEvent.sessionId;
 
     const secondResponse = await request(app)
       .post("/api/reading-sessions/preview")
@@ -49,8 +51,18 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
       .send({ childId });
 
     expect(secondResponse.statusCode).toBe(200);
-    expect(secondResponse.body).toEqual(firstResponse.body);
-    expect(secondResponse.body.sessionId).toBe(firstSessionId);
+
+    const secondDoneEvent = getFinalEvent(secondResponse.text);
+
+    // `question` may have gone from null to ready between the two calls (the
+    // initial-question background generation kicked off by the first /preview
+    // isn't guaranteed to still be in flight by the second) — everything else
+    // about the resumed session must still match exactly. A resumed session's
+    // response is always a single "done" event with no "title"/"chunk" —
+    // nothing was regenerated.
+    expect(secondResponse.text.trim().split("\n")).toHaveLength(1);
+    expect(secondDoneEvent).toEqual({ ...firstDoneEvent, question: secondDoneEvent.question });
+    expect(secondDoneEvent.sessionId).toBe(firstSessionId);
 
     // The original session must still be exactly as it was — never silently cancelled.
     expect(readingSessionStore.getSession(firstSessionId)).toMatchObject({
@@ -64,14 +76,14 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
 
     await request(app).post("/api/reading-sessions/preview").set("Cookie", [cookie]).send({ childId });
 
-    const generatePassageSpy = jest.spyOn(
+    const generatePassageStreamSpy = jest.spyOn(
       (await import("../../src/services/llmProvider/index.js")).default,
-      "generatePassage",
+      "generatePassageStream",
     );
 
     await request(app).post("/api/reading-sessions/preview").set("Cookie", [cookie]).send({ childId });
 
-    expect(generatePassageSpy).not.toHaveBeenCalled();
+    expect(generatePassageStreamSpy).not.toHaveBeenCalled();
   });
 
   test("returns 409/busy for a session that is currently locked (mid-mutation), without resuming its stale snapshot", async () => {
@@ -82,7 +94,8 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
       .set("Cookie", [cookie])
       .send({ childId });
 
-    readingSessionStore.tryClaimSession(firstResponse.body.sessionId);
+    const firstSessionId = getFinalEvent(firstResponse.text).sessionId;
+    readingSessionStore.tryClaimSession(firstSessionId);
 
     const secondResponse = await request(app)
       .post("/api/reading-sessions/preview")
@@ -93,8 +106,8 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
 
     // The locked session itself must be left exactly as it was — not cancelled,
     // not resumed, not silently replaced by a new one.
-    expect(readingSessionStore.getSession(firstResponse.body.sessionId)).toMatchObject({
-      sessionId: firstResponse.body.sessionId,
+    expect(readingSessionStore.getSession(firstSessionId)).toMatchObject({
+      sessionId: firstSessionId,
       state: "locked",
     });
   });
@@ -129,7 +142,9 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
 
     expect(firstResponse.statusCode).toBe(200);
     expect(secondResponse.statusCode).toBe(200);
-    expect(firstResponse.body.sessionId).not.toBe(secondResponse.body.sessionId);
+    expect(getFinalEvent(firstResponse.text).sessionId).not.toBe(
+      getFinalEvent(secondResponse.text).sessionId,
+    );
   });
 
   test("no longer resumes once the session has been completed — a fresh /preview generates a new one", async () => {
@@ -140,9 +155,16 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
       .set("Cookie", [cookie])
       .send({ childId });
 
+    const firstSessionId = getFinalEvent(firstResponse.text).sessionId;
+
+    // Deterministically wait for the initial question before answering — the
+    // same reason createReadySession does this elsewhere: currentQuestion is
+    // no longer guaranteed to be ready immediately after /preview.
+    await request(app).post("/api/reading-sessions/question").send({ sessionId: firstSessionId });
+
     await request(app)
       .post("/api/reading-sessions/answers")
-      .send({ sessionId: firstResponse.body.sessionId, answerText: "עלה ירוק" });
+      .send({ sessionId: firstSessionId, answerText: "עלה ירוק" });
 
     const secondResponse = await request(app)
       .post("/api/reading-sessions/preview")
@@ -150,6 +172,6 @@ describe("POST /api/reading-sessions/preview (resuming an existing active sessio
       .send({ childId });
 
     expect(secondResponse.statusCode).toBe(200);
-    expect(secondResponse.body.sessionId).not.toBe(firstResponse.body.sessionId);
+    expect(getFinalEvent(secondResponse.text).sessionId).not.toBe(firstSessionId);
   });
 });

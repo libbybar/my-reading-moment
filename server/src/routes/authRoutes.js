@@ -4,6 +4,7 @@ import express from "express";
 import * as parentService from "../services/parentService.js";
 import { writeDebugLog, runWithRequestId } from "../services/debugLogger.js";
 import { TOKEN_EXPIRES_IN_SECONDS, AUTH_COOKIE_NAME } from "../services/tokenService.js";
+import { sendErrorResponse } from "../http/errorResponses.js";
 
 const router = express.Router();
 
@@ -54,29 +55,25 @@ router.post("/register", async (req, res) => {
     writeDebugLog({ tag: "Route", label: "POST /auth/register received" });
     const requestStartTime = Date.now();
 
-    const { email, password } = req.body;
+    // req.body is undefined (not {}) when the request has no body/JSON
+    // Content-Type at all — same fix as /login.
+    const { email, password } = req.body ?? {};
 
     if (!isValidEmail(email) || !isValidPassword(password)) {
-      return res.status(400).json({
-        error: `email must be a valid address and password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-      });
+      return sendErrorResponse(res, 400, "registerInvalidInput");
     }
 
     try {
       const result = await parentService.registerParent({ email, password });
 
       if (result.status === "emailTaken") {
-        return res.status(409).json({
-          error: "A parent account with this email already exists",
-        });
+        return sendErrorResponse(res, 409, "registerEmailTaken");
       }
 
       res.status(201).json(toSafeParent(result.parent));
     } catch (error) {
       logError("POST /auth/register", error);
-      res.status(500).json({
-        error: "Failed to register parent account",
-      });
+      sendErrorResponse(res, 500, "registerFailed", { cause: error });
     } finally {
       writeDebugLog({
         tag: "Route",
@@ -94,21 +91,20 @@ router.post("/login", async (req, res) => {
     writeDebugLog({ tag: "Route", label: "POST /auth/login received" });
     const requestStartTime = Date.now();
 
-    const { email, password } = req.body;
+    // req.body is undefined (not {}) when the request has no body/JSON
+    // Content-Type at all — express.json() only ever populates req.body
+    // when it actually parses something.
+    const { email, password } = req.body ?? {};
 
     if (!isValidEmail(email) || !isNonBlankPassword(password)) {
-      return res.status(400).json({
-        error: "email and password are required",
-      });
+      return sendErrorResponse(res, 400, "loginInvalidInput");
     }
 
     try {
       const result = await parentService.loginParent({ email, password });
 
       if (result.status === "invalidCredentials") {
-        return res.status(401).json({
-          error: "Invalid email or password",
-        });
+        return sendErrorResponse(res, 401, "loginInvalidCredentials");
       }
 
       // The token lives only in the cookie — never in the response body,
@@ -122,9 +118,7 @@ router.post("/login", async (req, res) => {
       res.status(200).json(toSafeParent(result.parent));
     } catch (error) {
       logError("POST /auth/login", error);
-      res.status(500).json({
-        error: "Failed to log in",
-      });
+      sendErrorResponse(res, 500, "loginFailed", { cause: error });
     } finally {
       writeDebugLog({
         tag: "Route",
@@ -132,6 +126,34 @@ router.post("/login", async (req, res) => {
         durationSeconds: Number(((Date.now() - requestStartTime) / 1000).toFixed(2)),
       });
     }
+  });
+});
+
+// No requireAuth: logging out must succeed even with a missing, expired, or
+// malformed cookie — the goal is "the browser no longer holds this cookie,"
+// not "you were provably logged in." Note this only clears the cookie; the
+// JWT itself is stateless and not server-side revoked (out of scope here).
+router.post("/logout", (req, res) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
+  return runWithRequestId(requestId, () => {
+    writeDebugLog({ tag: "Route", label: "POST /auth/logout received" });
+    const requestStartTime = Date.now();
+
+    // Must mirror login's res.cookie options (minus maxAge) or the browser
+    // won't recognize this as clearing the same cookie.
+    res.clearCookie(AUTH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+    res.status(200).json({ success: true });
+
+    writeDebugLog({
+      tag: "Route",
+      label: "POST /auth/logout",
+      durationSeconds: Number(((Date.now() - requestStartTime) / 1000).toFixed(2)),
+    });
   });
 });
 

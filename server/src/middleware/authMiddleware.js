@@ -1,4 +1,5 @@
 import { verifyToken, AUTH_COOKIE_NAME } from "../services/tokenService.js";
+import { sendErrorResponse } from "../http/errorResponses.js";
 
 // Deliberately stateless: this only verifies the token and attaches the
 // claimed parentId — it never touches the database. Loading the actual
@@ -8,7 +9,7 @@ function requireAuth(req, res, next) {
   const token = req.cookies?.[AUTH_COOKIE_NAME];
 
   if (!token) {
-    return res.status(401).json({ error: "Authentication required" });
+    return sendErrorResponse(res, 401, "authenticationRequired");
   }
 
   try {
@@ -19,7 +20,7 @@ function requireAuth(req, res, next) {
   } catch {
     // Never distinguish "expired" from "malformed" from "wrong signature"
     // to the caller — same stable, generic response either way.
-    res.status(401).json({ error: "Authentication required" });
+    sendErrorResponse(res, 401, "authenticationRequired");
   }
 }
 

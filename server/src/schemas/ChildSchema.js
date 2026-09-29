@@ -4,6 +4,7 @@ import LearningProfileSchema from "./LearningProfileSchema.js";
 import LearningEventSchema from "./LearningEventSchema.js";
 import ParentNoteSchema from "./ParentNoteSchema.js";
 import AiSummarySchema from "./AiSummarySchema.js";
+import AVATARS from "../data/avatars.js";
 
 // Embedded children still need their own ids because routes address one child at a time.
 const ChildSchema = new mongoose.Schema({
@@ -38,6 +39,22 @@ const ChildSchema = new mongoose.Schema({
   learningEvents: [LearningEventSchema],
   parentNotes: [ParentNoteSchema],
   aiSummary: AiSummarySchema,
+  // The child's own pick (not the parent's), made once from ChildHomePage
+  // and then kept everywhere the child is shown, including the parent zone.
+  // No default — absent/null means "hasn't picked yet," which is what makes
+  // ChildHomePage show the picker in the first place.
+  avatarId: {
+    type: String,
+    enum: AVATARS,
+  },
+  // Soft delete only — "deleting" a child from the parent's perspective must
+  // never destroy their TextResult/learningEvents history. There is no
+  // restore UI yet; that's a separate, not-yet-needed feature.
+  isArchived: {
+    type: Boolean,
+    required: true,
+    default: false,
+  },
 });
 
 export default ChildSchema;

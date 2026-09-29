@@ -25,7 +25,10 @@ function seedSession() {
   });
 }
 
-const nextQuestionFailureBody = { error: "Failed to generate the next reading question" };
+const nextQuestionFailureBody = {
+  error: "Failed to generate the next reading question",
+  errorCode: "reading_session_next_question_failed",
+};
 
 function expectNextQuestionFailure(response) {
   expect(response.statusCode).toBe(500);

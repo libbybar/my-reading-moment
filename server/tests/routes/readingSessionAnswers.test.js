@@ -3,29 +3,46 @@ import app from "../../src/app.js";
 import readingSessionStore from "../../src/services/readingSessionStore.js";
 import Parent from "../../src/models/Parent.js";
 import * as testDb from "../support/testDb.js";
+import { createReadySession } from "../support/readingSessions.js";
 import { createAuthenticatedParentWithChild } from "../support/testAuth.js";
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
 async function createSession() {
-  const { parentId, childId, cookie } = await createAuthenticatedParentWithChild({
+  return createReadySession({
     name: "Test Child",
     grammaticalGender: "female",
     learningProfile: { readingLevel: "beginner", interests: [] },
   });
-
-  const previewResponse = await request(app)
-    .post("/api/reading-sessions/preview")
-    .set("Cookie", [cookie])
-    .send({ childId });
-
-  return { sessionId: previewResponse.body.sessionId, parentId, childId };
 }
 
 async function createSessionId() {
   const { sessionId } = await createSession();
 
   return sessionId;
+}
+
+// Deliberately bypasses /preview + /question, so currentQuestion is null with
+// certainty — the same "active session, no question yet" window /preview's
+// background generation genuinely produces, without racing real timing.
+async function createPendingSessionId() {
+  const { parentId, childId } = await createAuthenticatedParentWithChild({
+    name: "Test Child",
+    grammaticalGender: "female",
+    learningProfile: { readingLevel: "beginner", interests: [] },
+  });
+
+  const session = readingSessionStore.createSession({
+    passage: { id: "test-passage-1", title: "Title", text: "Text", level: 1, sublevel: 1 },
+    currentQuestion: null,
+    askedQuestionIds: [],
+    parentId,
+    childId,
+    level: 1,
+    sublevel: 1,
+  });
+
+  return session.sessionId;
 }
 
 describe("POST /api/reading-sessions/answers", () => {
@@ -149,6 +166,32 @@ describe("POST /api/reading-sessions/answers", () => {
     expect(response.statusCode).toBe(400);
   });
 
+  test("returns 400 when answerText exceeds the maximum length", async () => {
+    const sessionId = await createSessionId();
+
+    const response = await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "א".repeat(301),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: "Invalid answer request",
+      errorCode: "reading_session_answer_invalid_input",
+    });
+  });
+
+  test("accepts answerText right at the maximum length", async () => {
+    const sessionId = await createSessionId();
+
+    const response = await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "א".repeat(300),
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
   test("returns 404 when sessionId is unknown", async () => {
     const response = await request(app).post("/api/reading-sessions/answers").send({
       sessionId: "unknown-session-id",
@@ -156,7 +199,28 @@ describe("POST /api/reading-sessions/answers", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.body).toEqual({ error: "Session not found" });
+    expect(response.body).toEqual({
+      error: "Session not found",
+      errorCode: "reading_session_not_found",
+    });
+  });
+
+  test("returns 409/busy — not a crash — for an active session whose initial question isn't ready yet", async () => {
+    const sessionId = await createPendingSessionId();
+
+    const response = await request(app).post("/api/reading-sessions/answers").send({
+      sessionId,
+      answerText: "any answer",
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.body).toEqual({
+      error: "This reading exercise is not accepting requests right now",
+      errorCode: "reading_session_busy",
+    });
+
+    // Must be released back to active, not left stuck locked by the rejected attempt.
+    expect(readingSessionStore.getSession(sessionId)).toMatchObject({ state: "active" });
   });
 
   test("records an answer_attempt learning event for the session's child on a correct answer", async () => {

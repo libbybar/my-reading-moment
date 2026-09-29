@@ -4,10 +4,24 @@ import * as textResultRepository from "../repositories/textResultRepository.js";
 import * as parentRepository from "../repositories/parentRepository.js";
 import { computeProgression } from "./progression.js";
 import { READING_LEVEL_SPEC_VERSION } from "../data/readingLevelSpec.js";
+import { writeLearningLog } from "./debugLogger.js";
 
 const SUCCESS_WINDOW_SIZE = 4;
 const SKIP_STREAK_SIZE = 2;
 const DUPLICATE_KEY_ERROR_CODE = 11000;
+
+// Explicit whitelist — evidence is app-controlled today, but this keeps the
+// learning log immune to any future field added to the evidence shape.
+function toLoggedEvidence(evidence) {
+  if (!evidence) {
+    return null;
+  }
+
+  return {
+    questionsTotal: evidence.questionsTotal,
+    questionsCorrect: evidence.questionsCorrect,
+  };
+}
 
 // Atomic text completion: terminal LearningEvent (if any), TextResult,
 // progression, and journeyProgress commit together.
@@ -100,10 +114,42 @@ async function completeText({
       throw error;
     }
 
+    // Built entirely from the canonical existingResult, not the retry
+    // request's own params — a replay's request metadata may not even match
+    // (see the conflicting-result case above) and must never leak in here.
+    writeLearningLog({
+      tag: "Learning",
+      label: "Text completed (replay)",
+      sessionId: existingResult.sessionId,
+      parentId: existingResult.parentId,
+      childId: existingResult.childId,
+      level: existingResult.level,
+      sublevel: existingResult.sublevel,
+      result: existingResult.result,
+      alreadyCompleted: true,
+    });
+
     return { result: existingResult.result, progressionOutcome: null, alreadyCompleted: true };
   } finally {
     await session.endSession();
   }
+
+  writeLearningLog({
+    tag: "Learning",
+    label: "Text completed",
+    sessionId,
+    parentId,
+    childId,
+    level,
+    sublevel,
+    result,
+    evidence: toLoggedEvidence(evidence),
+    journeyProgressIncremented: result === "success",
+    progressionChanged: progressionOutcome.changed,
+    newLevel: progressionOutcome.changed ? progressionOutcome.level : null,
+    newSublevel: progressionOutcome.changed ? progressionOutcome.sublevel : null,
+    alreadyCompleted: false,
+  });
 
   return { result, progressionOutcome };
 }

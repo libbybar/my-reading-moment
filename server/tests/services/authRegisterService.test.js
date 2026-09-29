@@ -48,6 +48,7 @@ describe("POST /api/auth/register (service integration)", () => {
     expect(response.statusCode).toBe(409);
     expect(response.body).toEqual({
       error: "A parent account with this email already exists",
+      errorCode: "register_email_taken",
     });
   });
 
@@ -59,7 +60,8 @@ describe("POST /api/auth/register (service integration)", () => {
       .send({ email: "parent@example.com", password: "correct-horse" });
 
     expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expect(response.body).toMatchObject({ error: expect.any(String), errorCode: "register_failed" });
     expect(response.body.error).not.toMatch(/db exploded/);
+    expect(response.body).not.toHaveProperty("debug");
   });
 });

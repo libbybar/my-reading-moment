@@ -34,4 +34,17 @@ async function findRecentNonSkipped({ parentId, childId, level, sublevel, limit 
     .session(session ?? null);
 }
 
-export { create, findBySessionId, findRecentRaw, findRecentNonSkipped };
+// Unlike findRecentRaw/findRecentNonSkipped (exact level/sublevel match, for
+// the Progression rolling-window rules only), this is the whole history
+// across every rung — for the parent progress report. No cleanup/TTL exists
+// on TextResult, so limit is required, not optional.
+async function findAllForChild({ parentId, childId, limit }, { session } = {}) {
+  const results = await TextResult.find({ parentId, childId })
+    .sort({ completedAt: -1 })
+    .limit(limit)
+    .session(session ?? null);
+
+  return results.reverse();
+}
+
+export { create, findBySessionId, findRecentRaw, findRecentNonSkipped, findAllForChild };
