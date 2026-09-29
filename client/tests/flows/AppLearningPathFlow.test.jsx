@@ -17,7 +17,13 @@ vi.mock('../../src/constants/childAvatars', () => ({
 }))
 
 const GENERIC_PROFILES = [
-  { id: 'profile-alpha', name: 'פרופיל אלפא', grammaticalGender: 'female', readingLevel: 'beginner' },
+  {
+    id: 'profile-alpha',
+    name: 'פרופיל אלפא',
+    grammaticalGender: 'female',
+    readingLevel: 'beginner',
+    avatarId: 'star',
+  },
 ]
 
 const EXERCISE = {
@@ -32,6 +38,43 @@ const EXERCISE = {
 
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
+}
+
+function okPreviewStream(exercise) {
+  const encoder = new TextEncoder()
+  const lines = [
+    { type: 'title', title: exercise.title },
+    { type: 'chunk', text: exercise.story },
+    {
+      type: 'done',
+      title: exercise.title,
+      story: exercise.story,
+      passageId: exercise.passageId,
+      sessionId: exercise.sessionId,
+      question: null,
+      grammaticalGender: exercise.grammaticalGender,
+    },
+  ].map((event) => `${JSON.stringify(event)}\n`)
+  let index = 0
+
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => ({
+        read: () => {
+          if (index >= lines.length) {
+            return Promise.resolve({ done: true, value: undefined })
+          }
+
+          const value = encoder.encode(lines[index])
+          index += 1
+
+          return Promise.resolve({ done: false, value })
+        },
+      }),
+    },
+  })
 }
 
 function stationAccessibleName(stepNumber, statusLabel) {
@@ -64,7 +107,11 @@ beforeEach(() => {
 
   globalThis.fetch = vi.fn((url) => {
     if (url === '/api/reading-sessions/preview') {
-      return okJson(EXERCISE)
+      return okPreviewStream(EXERCISE)
+    }
+
+    if (url === '/api/reading-sessions/question') {
+      return okJson({ question: EXERCISE.question })
     }
 
     if (url === '/api/reading-sessions/answers') {
@@ -108,6 +155,12 @@ describe('App learning-path flow', () => {
     ).toBeInTheDocument()
 
     fireEvent.click(step1ActiveButton)
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: resolveText('readingSession.finishedReadingButtonLabel'),
+      }),
+    )
 
     await screen.findByText(EXERCISE.question.prompt)
 

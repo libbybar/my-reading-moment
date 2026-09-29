@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import TextField from '../components/ui/TextField'
 import Button from '../components/ui/Button'
 import FeedbackMessage from '../components/ui/FeedbackMessage'
@@ -20,11 +21,20 @@ function QuestionStep({
   onReturnToPath,
   returnToPathLabel,
   isReturningToPath,
+  onSkip,
+  skipLabel,
+  skippingLabel,
 }) {
   if (status === 'correct') {
     return (
       <AnswerPanel>
-        <FeedbackMessage tone="success">{feedbackMessage}</FeedbackMessage>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 12 }}
+        >
+          <FeedbackMessage tone="success">{feedbackMessage}</FeedbackMessage>
+        </motion.div>
         <Button onClick={onReturnToPath} disabled={isReturningToPath}>
           {returnToPathLabel}
         </Button>
@@ -32,7 +42,7 @@ function QuestionStep({
     )
   }
 
-  if (status === 'attemptLimitReached') {
+  if (status === 'attemptLimitReached' || status === 'skipped') {
     return (
       <AnswerPanel>
         <FeedbackMessage tone="info">{feedbackMessage}</FeedbackMessage>
@@ -61,9 +71,10 @@ function QuestionStep({
   }
 
   const isChecking = status === 'checking'
+  const isSkipping = status === 'skipping'
 
   function handleAnswerKeyDown(event) {
-    if (event.key === 'Enter' && !isChecking) {
+    if (event.key === 'Enter' && !isChecking && !isSkipping) {
       onSubmit()
     }
   }
@@ -75,13 +86,18 @@ function QuestionStep({
         value={answerText}
         onChange={onAnswerChange}
         onKeyDown={handleAnswerKeyDown}
-        disabled={isChecking}
+        disabled={isChecking || isSkipping}
         placeholder={placeholder}
         ariaLabel={ariaLabel}
       />
-      <Button onClick={onSubmit} disabled={isChecking}>
+      <Button onClick={onSubmit} disabled={isChecking || isSkipping}>
         {isChecking ? checkingLabel : submitLabel}
       </Button>
+      {(status === 'answering' || isSkipping) && (
+        <Button onClick={onSkip} disabled={isSkipping}>
+          {isSkipping ? skippingLabel : skipLabel}
+        </Button>
+      )}
     </AnswerPanel>
   )
 }

@@ -1,6 +1,7 @@
 import styled from 'styled-components'
 
 export const StyledCard = styled.div`
+  position: relative;
   width: 100%;
   max-width: 480px;
   background: ${(props) => props.theme.colors.surface};

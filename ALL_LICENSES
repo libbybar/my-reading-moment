@@ -13,8 +13,6 @@ The project also includes `package-lock.json` files for both workspaces, which r
 | `@google/genai` | 2.14.0 | Apache-2.0 | server |
 | `@testing-library/jest-dom` | 6.9.1 | MIT | client |
 | `@testing-library/react` | 16.3.2 | MIT | client |
-| `@types/react` | 19.2.17 | MIT | client |
-| `@types/react-dom` | 19.2.3 | MIT | client |
 | `@vitejs/plugin-react` | 6.0.3 | MIT | client |
 | `@vitest/coverage-v8` | 4.1.10 | MIT | client |
 | `bcrypt` | 6.0.0 | MIT | server |
@@ -37,7 +35,6 @@ The project also includes `package-lock.json` files for both workspaces, which r
 | `nodemon` | 3.1.14 | MIT | server |
 | `react` | 19.2.7 | MIT | client |
 | `react-dom` | 19.2.7 | MIT | client |
-| `react-hook-form` | 7.81.0 | MIT | client |
 | `react-router` | 8.2.0 | MIT | client |
 | `styled-components` | 6.4.3 | MIT | client |
 | `supertest` | 7.2.2 | MIT | server |

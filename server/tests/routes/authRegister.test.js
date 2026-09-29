@@ -42,6 +42,7 @@ describe("POST /api/auth/register", () => {
     expect(response.statusCode).toBe(409);
     expect(response.body).toEqual({
       error: "A parent account with this email already exists",
+      errorCode: "register_email_taken",
     });
     expect(await Parent.countDocuments()).toBe(1);
   });
@@ -55,7 +56,22 @@ describe("POST /api/auth/register", () => {
     const response = await request(app).post("/api/auth/register").send(body);
 
     expect(response.statusCode).toBe(400);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expect(response.body).toMatchObject({
+      error: "Invalid registration details",
+      errorCode: "register_invalid_input",
+    });
+    expect(await Parent.countDocuments()).toBe(0);
+  });
+
+  test("returns 400 (not a 500) for a request sent with no body at all, and creates no parent", async () => {
+    // Deliberately no .send() — req.body is undefined here, not {}.
+    const response = await request(app).post("/api/auth/register");
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toMatchObject({
+      error: "Invalid registration details",
+      errorCode: "register_invalid_input",
+    });
     expect(await Parent.countDocuments()).toBe(0);
   });
 });

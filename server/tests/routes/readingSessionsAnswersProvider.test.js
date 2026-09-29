@@ -43,7 +43,10 @@ async function seedSession() {
   return { ...session, parentId, childId };
 }
 
-const answerFailureBody = { error: "Failed to evaluate the answer" };
+const answerFailureBody = {
+  error: "Failed to evaluate the answer",
+  errorCode: "reading_session_answer_failed",
+};
 
 function expectAnswerFailure(response) {
   expect(response.statusCode).toBe(500);
@@ -128,7 +131,7 @@ describe("POST /api/reading-sessions/answers (provider integration)", () => {
     });
 
     expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: "Failed to evaluate the answer" });
+    expect(response.body).toEqual(answerFailureBody);
 
     // The failed write must never be treated as if it happened: no incorrect
     // attempt recorded, and the session released back to active (not stuck

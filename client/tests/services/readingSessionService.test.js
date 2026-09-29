@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  fetchReadingExercise,
+  streamReadingExercise,
   submitAnswer,
   fetchNextQuestion,
+  skipSession,
   ReadingSessionServiceError,
 } from '../../src/services/readingSessionService'
 
@@ -14,63 +15,159 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+// Minimal ReadableStream-shaped response for streamReadingExercise's NDJSON parser.
+function fakeStreamingResponse(events, { ok = true, status = 200 } = {}) {
+  const encoder = new TextEncoder()
+  const lines = events.map((event) => `${JSON.stringify(event)}\n`)
+  let index = 0
+
+  return {
+    ok,
+    status,
+    body: {
+      getReader: () => ({
+        read: () => {
+          if (index >= lines.length) {
+            return Promise.resolve({ done: true, value: undefined })
+          }
+
+          const value = encoder.encode(lines[index])
+          index += 1
+
+          return Promise.resolve({ done: false, value })
+        },
+      }),
+    },
+  }
+}
+
+function collectUpdates(stream) {
+  const updates = []
+  stream.subscribe((state) => updates.push(state))
+  return updates
+}
+
 describe('readingSessionService', () => {
-  describe('fetchReadingExercise', () => {
+  describe('streamReadingExercise', () => {
     it('sends a POST request with the childId in the body', async () => {
-      globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) })
+      globalThis.fetch.mockResolvedValue(fakeStreamingResponse([{ type: 'done', sessionId: 's1' }]))
 
-      await fetchReadingExercise('test-child-profile-1')
+      streamReadingExercise('test-child-profile-1')
 
-      expect(globalThis.fetch).toHaveBeenCalledWith('/api/reading-sessions/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ childId: 'test-child-profile-1' }),
+      await vi.waitFor(() => {
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/reading-sessions/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: 'test-child-profile-1' }),
+        })
       })
     })
 
-    it('resolves with the parsed JSON body on success', async () => {
-      const exercise = { title: 'הקסם בספרייה', sessionId: 'session-1' }
-      globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(exercise) })
+    it('delivers title and chunk events incrementally, then a terminal done event', async () => {
+      globalThis.fetch.mockResolvedValue(
+        fakeStreamingResponse([
+          { type: 'title', title: 'כותרת' },
+          { type: 'chunk', text: 'שלום ' },
+          { type: 'chunk', text: 'עולם' },
+          {
+            type: 'done',
+            title: 'כותרת',
+            story: 'שלום עולם',
+            passageId: 'p1',
+            sessionId: 's1',
+            question: null,
+            grammaticalGender: 'female',
+          },
+        ]),
+      )
 
-      const result = await fetchReadingExercise('test-child-profile-1')
+      const updates = collectUpdates(streamReadingExercise('test-child-profile-1'))
 
-      expect(result).toEqual(exercise)
+      await vi.waitFor(() => {
+        expect(updates[updates.length - 1].status).toBe('done')
+      })
+
+      expect(updates[0]).toMatchObject({ status: 'streaming', title: null, story: '' })
+      expect(updates[1]).toMatchObject({ title: 'כותרת', story: '' })
+      expect(updates[2]).toMatchObject({ story: 'שלום ' })
+      expect(updates[3]).toMatchObject({ story: 'שלום עולם' })
+
+      const final = updates[updates.length - 1]
+      expect(final.status).toBe('done')
+      expect(final.meta).toEqual({
+        type: 'done',
+        title: 'כותרת',
+        story: 'שלום עולם',
+        passageId: 'p1',
+        sessionId: 's1',
+        question: null,
+        grammaticalGender: 'female',
+      })
     })
 
-    it('rejects with a structured error when the response is not ok', async () => {
+    it('replays already-arrived state to a subscriber that attaches late', async () => {
+      globalThis.fetch.mockResolvedValue(
+        fakeStreamingResponse([
+          { type: 'chunk', text: 'חלק ראשון' },
+          { type: 'done', title: 't', story: 'חלק ראשון', sessionId: 's1' },
+        ]),
+      )
+
+      const stream = streamReadingExercise('test-child-profile-1')
+
+      await vi.waitFor(() => {
+        const probe = []
+        const unsubscribe = stream.subscribe((state) => probe.push(state))
+        unsubscribe()
+        expect(probe[0].status).toBe('done')
+      })
+
+      const lateUpdates = []
+      stream.subscribe((state) => lateUpdates.push(state))
+
+      expect(lateUpdates).toHaveLength(1)
+      expect(lateUpdates[0].status).toBe('done')
+      expect(lateUpdates[0].story).toBe('חלק ראשון')
+    })
+
+    it('reports a structured error event when the response is not ok (the early, pre-stream failure shape)', async () => {
       globalThis.fetch.mockResolvedValue({
         ok: false,
-        status: 500,
-        json: () => Promise.resolve({ error: 'boom' }),
+        status: 409,
+        json: () => Promise.resolve({ error: 'busy' }),
       })
 
-      await expect(fetchReadingExercise('test-child-profile-1')).rejects.toMatchObject({
-        name: 'ReadingSessionServiceError',
-        status: 500,
-        body: { error: 'boom' },
-        message: expect.any(String),
+      const updates = collectUpdates(streamReadingExercise('test-child-profile-1'))
+
+      await vi.waitFor(() => {
+        expect(updates[updates.length - 1].status).toBe('error')
       })
+
+      const final = updates[updates.length - 1]
+      expect(final.error).toBeInstanceOf(ReadingSessionServiceError)
+      expect(final.error.status).toBe(409)
+      expect(final.error.body).toEqual({ error: 'busy' })
     })
 
-    it('handles a non-JSON error response safely without hiding the HTTP status', async () => {
-      globalThis.fetch.mockResolvedValue({
-        ok: false,
-        status: 502,
-        json: () => Promise.reject(new Error('invalid json')),
+    it('reports an error state for an in-band {type:"error"} event mid-stream', async () => {
+      globalThis.fetch.mockResolvedValue(
+        fakeStreamingResponse([
+          { type: 'title', title: 'כותרת' },
+          { type: 'error', error: 'Failed to generate a reading question', errorCode: 'reading_session_preview_failed' },
+        ]),
+      )
+
+      const updates = collectUpdates(streamReadingExercise('test-child-profile-1'))
+
+      await vi.waitFor(() => {
+        expect(updates[updates.length - 1].status).toBe('error')
       })
 
-      let caughtError
-
-      try {
-        await fetchReadingExercise('test-child-profile-1')
-      } catch (thrownError) {
-        caughtError = thrownError
-      }
-
-      expect(caughtError).toBeInstanceOf(ReadingSessionServiceError)
-      expect(caughtError.status).toBe(502)
-      expect(caughtError.body).toBeNull()
-      expect(caughtError.message).toEqual(expect.any(String))
+      expect(updates[updates.length - 1].error).toEqual({
+        type: 'error',
+        error: 'Failed to generate a reading question',
+        errorCode: 'reading_session_preview_failed',
+      })
     })
   })
 
@@ -161,6 +258,43 @@ describe('readingSessionService', () => {
         name: 'ReadingSessionServiceError',
         status: 500,
         body: { error: 'boom' },
+        message: expect.any(String),
+      })
+    })
+  })
+
+  describe('skipSession', () => {
+    it('sends a POST request with only sessionId in the body', async () => {
+      globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ skipped: true }) })
+
+      await skipSession('session-1')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/reading-sessions/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'session-1' }),
+      })
+    })
+
+    it('resolves with the parsed JSON body on success', async () => {
+      globalThis.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ skipped: true }) })
+
+      const result = await skipSession('session-1')
+
+      expect(result).toEqual({ skipped: true })
+    })
+
+    it('rejects with a structured error when the response is not ok', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ error: 'Session busy' }),
+      })
+
+      await expect(skipSession('session-1')).rejects.toMatchObject({
+        name: 'ReadingSessionServiceError',
+        status: 409,
+        body: { error: 'Session busy' },
         message: expect.any(String),
       })
     })

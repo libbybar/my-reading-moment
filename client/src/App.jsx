@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from './pages/ReadingSessionPage'
 import ChildSelectionPage from './pages/ChildSelectionPage'
 import ChildHomePage from './pages/ChildHomePage'
+import ParentZonePage from './pages/ParentZonePage'
+import ChildProgressPage from './pages/ChildProgressPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import { ActiveChildProvider } from './context/ActiveChildProvider'
@@ -16,6 +18,8 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/children" element={<ChildSelectionPage />} />
           <Route path="/child-home" element={<ChildHomePage />} />
+          <Route path="/parent-zone" element={<ParentZonePage />} />
+          <Route path="/parent-zone/:childId/progress" element={<ChildProgressPage />} />
         </Routes>
       </ActiveChildProvider>
     </BrowserRouter>

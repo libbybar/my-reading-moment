@@ -36,11 +36,38 @@ export function createChildProfile({ name, grammaticalGender, readingLevel, inte
   }).then(parseJsonResponse)
 }
 
+export function fetchChildProgress(childId) {
+  return fetch(`${CHILD_PROFILES_URL}/${childId}/progress`, { credentials: 'include' }).then(
+    parseJsonResponse,
+  )
+}
+
 export function updateChildProfile(childId, updates) {
   return fetch(`${CHILD_PROFILES_URL}/${childId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(updates),
+  }).then(parseJsonResponse)
+}
+
+// Separate from updateChildProfile: choosing an avatar is a child action and must
+// keep working without a parent-zone session.
+export function updateChildAvatar(childId, avatarId) {
+  return fetch(`${CHILD_PROFILES_URL}/${childId}/avatar`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ avatarId }),
+  }).then(parseJsonResponse)
+}
+
+// Soft delete server-side (see ChildSchema.js's isArchived) — named
+// "archive" here to stay honest about that, even though the UI calls it
+// deletion (see ParentZonePage.jsx).
+export function archiveChildProfile(childId) {
+  return fetch(`${CHILD_PROFILES_URL}/${childId}`, {
+    method: 'DELETE',
+    credentials: 'include',
   }).then(parseJsonResponse)
 }

@@ -50,6 +50,7 @@ const { default: mockPassages } = await import("../../src/data/mockPassages.js")
 const { default: readingSessionStore } = await import("../../src/services/readingSessionStore.js");
 const testDb = await import("../support/testDb.js");
 const { createAuthenticatedParentWithChild } = await import("../support/testAuth.js");
+const { getFinalEvent } = await import("../support/readingSessions.js");
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
 
@@ -78,6 +79,10 @@ describe("POST /api/reading-sessions/preview (passage supply by level/sublevel, 
     });
   }
 
+  async function fetchQuestion(sessionId) {
+    return request(app).post("/api/reading-sessions/question").send({ sessionId });
+  }
+
   test("a 1.1 profile receives the 1.1 passage, even though it is not first in the array", async () => {
     const passage1_1 = mockPassages.find((passage) => passage.level === 1 && passage.sublevel === 1);
     const { childId, cookie } = await createChildWithLevel(1, 1);
@@ -88,10 +93,17 @@ describe("POST /api/reading-sessions/preview (passage supply by level/sublevel, 
       .send({ childId });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.passageId).toBe(passage1_1.id);
-    expect(response.body.title).toBe(passage1_1.title);
-    expect(response.body.story).toBe(passage1_1.text);
-    expect(response.body.question.passageId).toBe(passage1_1.id);
+
+    const doneEvent = getFinalEvent(response.text);
+
+    expect(doneEvent.passageId).toBe(passage1_1.id);
+    expect(doneEvent.title).toBe(passage1_1.title);
+    expect(doneEvent.story).toBe(passage1_1.text);
+    expect(doneEvent.question).toBeNull();
+
+    const questionResponse = await fetchQuestion(doneEvent.sessionId);
+
+    expect(questionResponse.body.question.passageId).toBe(passage1_1.id);
   });
 
   test("a 2.2 profile receives the 2.2 passage, even though it is first in the array", async () => {
@@ -104,10 +116,17 @@ describe("POST /api/reading-sessions/preview (passage supply by level/sublevel, 
       .send({ childId });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.passageId).toBe(passage2_2.id);
-    expect(response.body.title).toBe(passage2_2.title);
-    expect(response.body.story).toBe(passage2_2.text);
-    expect(response.body.question.passageId).toBe(passage2_2.id);
+
+    const doneEvent = getFinalEvent(response.text);
+
+    expect(doneEvent.passageId).toBe(passage2_2.id);
+    expect(doneEvent.title).toBe(passage2_2.title);
+    expect(doneEvent.story).toBe(passage2_2.text);
+    expect(doneEvent.question).toBeNull();
+
+    const questionResponse = await fetchQuestion(doneEvent.sessionId);
+
+    expect(questionResponse.body.question.passageId).toBe(passage2_2.id);
   });
 
   test("stores the selected passage and its generated question in the created session", async () => {
@@ -119,7 +138,11 @@ describe("POST /api/reading-sessions/preview (passage supply by level/sublevel, 
       .set("Cookie", [cookie])
       .send({ childId });
 
-    const storedSession = readingSessionStore.getSession(response.body.sessionId);
+    const { sessionId } = getFinalEvent(response.text);
+
+    await fetchQuestion(sessionId);
+
+    const storedSession = readingSessionStore.getSession(sessionId);
 
     expect(storedSession.passage.id).toBe(passage1_1.id);
     expect(storedSession.passage.title).toBe(passage1_1.title);
@@ -140,7 +163,13 @@ describe("POST /api/reading-sessions/preview (passage supply by level/sublevel, 
       .send({ childId });
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.sessionId).toEqual(expect.any(String));
-    expect(response.body.question).not.toBeNull();
+
+    const { sessionId } = getFinalEvent(response.text);
+
+    expect(sessionId).toEqual(expect.any(String));
+
+    const questionResponse = await fetchQuestion(sessionId);
+
+    expect(questionResponse.body.question).not.toBeNull();
   });
 });

@@ -17,6 +17,7 @@ export const theme = {
 
     success: "#45B96B",
     error: "#E95757",
+    errorDark: "#C23F3F",
 
     text: "#29263A",
     textMuted: "#6F6A7D",

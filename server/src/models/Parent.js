@@ -16,6 +16,10 @@ const ParentSchema = new mongoose.Schema(
       required: true,
       select: false,
     },
+    parentPinHash: {
+      type: String,
+      select: false,
+    },
     lastLoginAt: {
       type: Date,
     },

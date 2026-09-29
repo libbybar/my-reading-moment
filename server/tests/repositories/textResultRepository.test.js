@@ -158,6 +158,61 @@ describe("textResultRepository", () => {
     });
   });
 
+  describe("findAllForChild", () => {
+    test("returns results across every level/sublevel, oldest first, scoped to the exact parent/child", async () => {
+      const parentId = newId();
+      const childId = newId();
+      const otherChildId = newId();
+
+      await textResultRepository.create(
+        baseFields({ parentId, childId, level: 1, sublevel: 1, completedAt: new Date("2026-01-01T10:00:00Z") }),
+      );
+      await textResultRepository.create(
+        baseFields({ parentId, childId, level: 1, sublevel: 2, completedAt: new Date("2026-01-02T10:00:00Z") }),
+      );
+      await textResultRepository.create(
+        baseFields({ parentId, childId, level: 2, sublevel: 1, completedAt: new Date("2026-01-03T10:00:00Z") }),
+      );
+      // Different child, different parent: must never leak into the results.
+      await textResultRepository.create(baseFields({ parentId, childId: otherChildId }));
+      await textResultRepository.create(baseFields({ parentId: newId(), childId }));
+
+      const results = await textResultRepository.findAllForChild({ parentId, childId, limit: 200 });
+
+      expect(results.map((entry) => `${entry.level}.${entry.sublevel}`)).toEqual(["1.1", "1.2", "2.1"]);
+      expect(results[0].completedAt.toISOString()).toBe("2026-01-01T10:00:00.000Z");
+      expect(results[2].completedAt.toISOString()).toBe("2026-01-03T10:00:00.000Z");
+    });
+
+    test("includes every result type, including skipped", async () => {
+      const parentId = newId();
+      const childId = newId();
+
+      await textResultRepository.create(baseFields({ parentId, childId, result: "success" }));
+      await textResultRepository.create(baseFields({ parentId, childId, result: "failure" }));
+      await textResultRepository.create(baseFields({ parentId, childId, result: "skipped" }));
+
+      const results = await textResultRepository.findAllForChild({ parentId, childId, limit: 200 });
+
+      expect(results.map((entry) => entry.result).sort()).toEqual(["failure", "skipped", "success"]);
+    });
+
+    test("respects the limit by keeping the most recent results, still returned oldest first", async () => {
+      const parentId = newId();
+      const childId = newId();
+
+      for (let i = 0; i < 5; i += 1) {
+        await textResultRepository.create(
+          baseFields({ parentId, childId, completedAt: new Date(2026, 0, i + 1) }),
+        );
+      }
+
+      const results = await textResultRepository.findAllForChild({ parentId, childId, limit: 3 });
+
+      expect(results.map((entry) => entry.completedAt.getDate())).toEqual([3, 4, 5]);
+    });
+  });
+
   test("has the compound indexes Progression's queries rely on", async () => {
     const indexes = await TextResult.collection.getIndexes({ full: true });
     const compoundIndexes = indexes.filter((index) =>

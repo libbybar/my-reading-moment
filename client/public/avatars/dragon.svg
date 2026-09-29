@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<path d="M 82 512 L 82 478 Q 82 392 176 372 L 336 372 Q 430 392 430 478 L 430 512 Z" fill="#2FA48D"></path>
+<clipPath id="sh"><path d="M 82 512 L 82 478 Q 82 392 176 372 L 336 372 Q 430 392 430 478 L 430 512 Z"></path></clipPath>
+<g clip-path="url(#sh)"><path d="M 300 360 Q 356 440 348 530 L 470 530 L 470 360 Z" fill="#1E7D6C" opacity=".3"></path></g>
+<g fill="#1E7D6C">
+  <path d="M 96 416 q -44 -36 -30 -94 q 52 12 86 58 Z"></path>
+  <path d="M 416 416 q 44 -36 30 -94 q -52 12 -86 58 Z"></path>
+</g>
+<path d="M 218 286 L 294 286 Q 300 348 342 404 L 170 404 Q 212 348 218 286 Z" fill="#2FA48D"></path>
+<g>
+  <path d="M 186 124 q -20 -60 -58 -76 q 6 62 32 90 Z" fill="#FFD37A"></path>
+  <path d="M 326 124 q 20 -60 58 -76 q -6 62 -32 90 Z" fill="#EAA83C"></path>
+  <path d="M 256 78 q 106 0 106 108 v 34 q 0 96 -106 96 q -106 0 -106 -96 v -34 q 0 -108 106 -108 Z" fill="#4FC7AB"></path>
+  <clipPath id="dc"><path d="M 256 78 q 106 0 106 108 v 34 q 0 96 -106 96 q -106 0 -106 -96 v -34 q 0 -108 106 -108 Z"></path></clipPath>
+  <g clip-path="url(#dc)"><ellipse cx="366" cy="326" rx="160" ry="150" fill="#2FA48D" opacity=".45"></ellipse></g>
+  <path d="M 256 62 l 22 30 h -44 Z" fill="#FFD37A"></path>
+  <path d="M 256 222 q 62 0 62 40 q 0 44 -62 44 q -62 0 -62 -44 q 0 -40 62 -40 Z" fill="#BFF0E2"></path>
+  <ellipse cx="234" cy="248" rx="8" ry="10" fill="#5AA694"></ellipse><ellipse cx="278" cy="248" rx="8" ry="10" fill="#5AA694"></ellipse>
+  <path d="M 214 296 q 12 22 24 0 Z" fill="#fff"></path><path d="M 274 296 q 12 22 24 0 Z" fill="#fff"></path>
+</g>
+<ellipse cx="164" cy="210" rx="20" ry="12" fill="#F0783C" opacity=".5"></ellipse><ellipse cx="348" cy="210" rx="20" ry="12" fill="#F0783C" opacity=".5"></ellipse>
+<rect x="196.5" y="172.5" width="19" height="27" rx="9.5" fill="#332E52"></rect><circle cx="209.42" cy="180.06" r="3.9899999999999998" fill="#fff" opacity=".9"></circle><rect x="296.5" y="172.5" width="19" height="27" rx="9.5" fill="#332E52"></rect><circle cx="309.42" cy="180.06" r="3.9899999999999998" fill="#fff" opacity=".9"></circle>
+<path d="M 233 270 Q 256 287.71 279 270" fill="none" stroke="#332E52" stroke-width="9" stroke-linecap="round"></path>
+</svg>

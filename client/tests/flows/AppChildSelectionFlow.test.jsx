@@ -16,8 +16,20 @@ vi.mock('../../src/constants/childAvatars', () => ({
 }))
 
 const GENERIC_PROFILES = [
-  { id: 'profile-alpha', name: 'פרופיל אלפא', grammaticalGender: 'female', readingLevel: 'beginner' },
-  { id: 'profile-beta', name: 'פרופיל בטא', grammaticalGender: 'male', readingLevel: 'intermediate' },
+  {
+    id: 'profile-alpha',
+    name: 'פרופיל אלפא',
+    grammaticalGender: 'female',
+    readingLevel: 'beginner',
+    avatarId: 'star',
+  },
+  {
+    id: 'profile-beta',
+    name: 'פרופיל בטא',
+    grammaticalGender: 'male',
+    readingLevel: 'intermediate',
+    avatarId: 'dragon',
+  },
 ]
 
 function renderAppAtPath(path) {

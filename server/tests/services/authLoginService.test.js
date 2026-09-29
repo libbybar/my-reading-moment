@@ -49,7 +49,10 @@ describe("POST /api/auth/login (service integration)", () => {
       .send({ email: "parent@example.com", password: "wrong-password" });
 
     expect(response.statusCode).toBe(401);
-    expect(response.body).toEqual({ error: "Invalid email or password" });
+    expect(response.body).toEqual({
+      error: "Invalid email or password",
+      errorCode: "login_invalid_credentials",
+    });
   });
 
   test("returns a stable 500 error response when the service rejects, without leaking the underlying error", async () => {
@@ -60,7 +63,8 @@ describe("POST /api/auth/login (service integration)", () => {
       .send({ email: "parent@example.com", password: "correct-horse" });
 
     expect(response.statusCode).toBe(500);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expect(response.body).toMatchObject({ error: expect.any(String), errorCode: "login_failed" });
     expect(response.body.error).not.toMatch(/db exploded/);
+    expect(response.body).not.toHaveProperty("debug");
   });
 });

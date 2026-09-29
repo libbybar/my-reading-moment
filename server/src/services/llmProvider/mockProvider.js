@@ -42,13 +42,13 @@ function synthesizeQuestion(passage) {
   };
 }
 
-async function generatePassage({ level, sublevel, interests = [] }) {
+async function computePassage({ level, sublevel, interests = [] }) {
   if (!isValidLevel(level) || !isValidSublevel(sublevel)) {
-    throw new Error("generatePassage requires a valid level and sublevel");
+    throw new Error("generatePassageStream requires a valid level and sublevel");
   }
 
   if (!Array.isArray(interests)) {
-    throw new Error("generatePassage requires interests to be an array");
+    throw new Error("generatePassageStream requires interests to be an array");
   }
 
   const passage = mockPassages.find(
@@ -66,6 +66,25 @@ async function generatePassage({ level, sublevel, interests = [] }) {
   }
 
   return synthesizePassage(level, sublevel);
+}
+
+// Deterministic stand-in for streaming; no artificial delay in tests.
+function splitIntoWordChunks(text) {
+  const words = text.split(" ");
+
+  return words.map((word, index) => (index < words.length - 1 ? `${word} ` : word));
+}
+
+async function* generatePassageStream({ level, sublevel, interests = [] }) {
+  const passage = await computePassage({ level, sublevel, interests });
+
+  yield { type: "title", title: passage.title };
+
+  for (const chunk of splitIntoWordChunks(passage.text)) {
+    yield { type: "chunk", text: chunk };
+  }
+
+  yield { type: "done", passage };
 }
 
 async function generateQuestion({ passage, askedQuestionIds = [] }) {
@@ -129,8 +148,8 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-const mockProvider = { generatePassage, generateQuestion, evaluateAnswer };
+const mockProvider = { generatePassageStream, generateQuestion, evaluateAnswer };
 
-export { generatePassage, generateQuestion, evaluateAnswer };
+export { generatePassageStream, generateQuestion, evaluateAnswer };
 
 export default mockProvider;

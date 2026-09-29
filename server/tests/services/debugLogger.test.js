@@ -9,7 +9,7 @@ jest.unstable_mockModule("fs", () => ({
   default: fs,
 }));
 
-const { writeDebugLog, runWithRequestId } = await import("../../src/services/debugLogger.js");
+const { writeDebugLog, writeLearningLog, runWithRequestId } = await import("../../src/services/debugLogger.js");
 
 const ORIGINAL_ENV = process.env;
 
@@ -17,6 +17,12 @@ function readLoggedEntry(callIndex = 0) {
   const [, content] = fs.appendFileSync.mock.calls[callIndex];
 
   return JSON.parse(content.trim());
+}
+
+function loggedFilePath(callIndex = 0) {
+  const [filePath] = fs.appendFileSync.mock.calls[callIndex];
+
+  return filePath;
 }
 
 describe("debugLogger", () => {
@@ -65,6 +71,7 @@ describe("debugLogger", () => {
 
     expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     expect(fs.appendFileSync).toHaveBeenCalledTimes(1);
+    expect(loggedFilePath()).toMatch(/timing\.jsonl$/);
     expect(readLoggedEntry()).toEqual(
       expect.objectContaining({
         tag: "Route",
@@ -116,5 +123,67 @@ describe("debugLogger", () => {
 
     expect(() => writeDebugLog({ tag: "Route", label: "test" })).not.toThrow();
     expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("writeLearningLog", () => {
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    fs.mkdirSync.mockReset();
+    fs.appendFileSync.mockReset();
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.env = ORIGINAL_ENV;
+    jest.restoreAllMocks();
+  });
+
+  test("does not write during automated tests, regardless of TIMING_LOG_ENABLED", () => {
+    process.env.TIMING_LOG_ENABLED = "true";
+
+    writeLearningLog({ tag: "Learning", label: "Text completed" });
+
+    expect(fs.appendFileSync).not.toHaveBeenCalled();
+  });
+
+  test("writes outside test env even when TIMING_LOG_ENABLED is unset", () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.TIMING_LOG_ENABLED;
+
+    writeLearningLog({ tag: "Learning", label: "Text completed", result: "success" });
+
+    expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
+    expect(fs.appendFileSync).toHaveBeenCalledTimes(1);
+    expect(loggedFilePath()).toMatch(/learning\.jsonl$/);
+    expect(readLoggedEntry()).toEqual(
+      expect.objectContaining({
+        tag: "Learning",
+        label: "Text completed",
+        result: "success",
+        timestamp: expect.any(String),
+      }),
+    );
+  });
+
+  test("includes the requestId from runWithRequestId automatically", () => {
+    process.env.NODE_ENV = "development";
+
+    runWithRequestId("abc123", () => {
+      writeLearningLog({ tag: "Learning", label: "Text completed" });
+    });
+
+    expect(readLoggedEntry().requestId).toBe("abc123");
+  });
+
+  test("does not throw when the log file write fails, and warns once", () => {
+    process.env.NODE_ENV = "development";
+    fs.appendFileSync.mockImplementation(() => {
+      throw new Error("disk full");
+    });
+
+    expect(() => writeLearningLog({ tag: "Learning", label: "Text completed" })).not.toThrow();
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.warn.mock.calls[0][0]).toContain("disk full");
   });
 });

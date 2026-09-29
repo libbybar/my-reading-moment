@@ -1,7 +1,12 @@
 import crypto from "crypto";
 
 import * as geminiClient from "./geminiClient.js";
-import { buildPassagePrompt, buildQuestionPrompt, buildEvaluationPrompt } from "./prompts.js";
+import {
+  buildPassagePrompt,
+  buildQuestionPrompt,
+  buildEvaluationSystemInstruction,
+  buildEvaluationContent,
+} from "./prompts.js";
 import { isValidLevel, isValidSublevel } from "../../data/readingLevelSpec.js";
 
 function isNonBlankString(value) {
@@ -12,36 +17,71 @@ function isNonBlankString(value) {
 // isCorrect) — structural fields (id, level, sublevel, passageId) are always
 // assigned by this module, never taken from the model's output.
 
-async function generatePassage({ level, sublevel, interests = [] }) {
+// Gemini-only format convention for turning plain text into title/chunk/done events.
+const PASSAGE_STREAM_FORMAT_INSTRUCTION =
+  "כתבי את הכותרת בשורה הראשונה בלבד, אחריה שורה ריקה אחת, ולאחר מכן את גוף הקטע בלבד. אל תשתמשי בסימוני עיצוב כמו גרשיים משולשים (```) ואל תוסיפי כותרות משנה או תוויות נוספות.";
+
+// Buffers only until the title/body separator so the title never leaks into a chunk.
+async function* generatePassageStream({ level, sublevel, interests = [] }) {
   if (!isValidLevel(level) || !isValidSublevel(sublevel)) {
-    throw new Error("generatePassage requires a valid level and sublevel");
+    throw new Error("generatePassageStream requires a valid level and sublevel");
   }
 
   if (!Array.isArray(interests)) {
-    throw new Error("generatePassage requires interests to be an array");
+    throw new Error("generatePassageStream requires interests to be an array");
   }
 
-  const content = await geminiClient.generateJson({
-    prompt: buildPassagePrompt({ level, sublevel, interests }),
-    responseSchema: geminiClient.PASSAGE_RESPONSE_SCHEMA,
-    label: "Gemini: generatePassage",
-    describeResult: (result) => ({
-      level,
-      sublevel,
-      textLength: typeof result.text === "string" ? result.text.length : null,
-    }),
-  });
+  const prompt = `${buildPassagePrompt({ level, sublevel, interests })}\n\n${PASSAGE_STREAM_FORMAT_INSTRUCTION}`;
 
-  if (!isNonBlankString(content.title) || !isNonBlankString(content.text)) {
+  let buffer = "";
+  let title = null;
+  let bodyText = "";
+  let bodyStarted = false;
+
+  for await (const rawChunk of geminiClient.generateTextStream({
+    prompt,
+    label: "Gemini: generatePassageStream",
+  })) {
+    if (!bodyStarted) {
+      buffer += rawChunk;
+
+      const separatorIndex = buffer.indexOf("\n\n");
+
+      if (separatorIndex === -1) {
+        continue;
+      }
+
+      title = buffer.slice(0, separatorIndex).trim();
+      bodyStarted = true;
+      yield { type: "title", title };
+
+      const initialBodyText = buffer.slice(separatorIndex + 2);
+
+      if (initialBodyText.length > 0) {
+        bodyText += initialBodyText;
+        yield { type: "chunk", text: initialBodyText };
+      }
+
+      continue;
+    }
+
+    bodyText += rawChunk;
+    yield { type: "chunk", text: rawChunk };
+  }
+
+  if (!isNonBlankString(title) || !isNonBlankString(bodyText)) {
     throw new Error("Gemini returned a passage with a missing title or text");
   }
 
-  return {
-    id: crypto.randomUUID(),
-    title: content.title,
-    text: content.text,
-    level,
-    sublevel,
+  yield {
+    type: "done",
+    passage: {
+      id: crypto.randomUUID(),
+      title,
+      text: bodyText,
+      level,
+      sublevel,
+    },
   };
 }
 
@@ -105,7 +145,8 @@ async function evaluateAnswer({ passage, question, answerText }) {
   }
 
   const content = await geminiClient.generateJson({
-    prompt: buildEvaluationPrompt({ question, answerText }),
+    prompt: buildEvaluationContent({ question, answerText }),
+    systemInstruction: buildEvaluationSystemInstruction(),
     responseSchema: geminiClient.EVALUATION_RESPONSE_SCHEMA,
     label: "Gemini: evaluateAnswer",
   });
@@ -121,8 +162,8 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-const geminiProvider = { generatePassage, generateQuestion, evaluateAnswer };
+const geminiProvider = { generatePassageStream, generateQuestion, evaluateAnswer };
 
-export { generatePassage, generateQuestion, evaluateAnswer };
+export { generatePassageStream, generateQuestion, evaluateAnswer };
 
 export default geminiProvider;

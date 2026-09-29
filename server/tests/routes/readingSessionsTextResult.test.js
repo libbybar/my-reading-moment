@@ -3,7 +3,7 @@ import app from "../../src/app.js";
 import readingSessionStore from "../../src/services/readingSessionStore.js";
 import TextResult from "../../src/models/TextResult.js";
 import * as testDb from "../support/testDb.js";
-import { createAuthenticatedParentWithChild } from "../support/testAuth.js";
+import { createReadySession } from "../support/readingSessions.js";
 import { MAX_INCORRECT_ATTEMPTS } from "../../src/services/textCompletionRules.js";
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
@@ -11,18 +11,11 @@ const WRONG_ANSWER = "משהו לגמרי לא קשור";
 const CORRECT_ANSWER = "עלה ירוק";
 
 async function createSessionAndChild() {
-  const { parentId, childId, cookie } = await createAuthenticatedParentWithChild({
+  return createReadySession({
     name: "Test Child",
     grammaticalGender: "female",
     learningProfile: { readingLevel: "beginner", interests: [] },
   });
-
-  const previewResponse = await request(app)
-    .post("/api/reading-sessions/preview")
-    .set("Cookie", [cookie])
-    .send({ childId });
-
-  return { sessionId: previewResponse.body.sessionId, parentId, childId, cookie };
 }
 
 function submitAnswer(sessionId, answerText) {

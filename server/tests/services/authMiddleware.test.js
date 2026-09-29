@@ -21,7 +21,10 @@ function buildTestApp() {
 
 function expectAuthenticationRequired(response) {
   expect(response.statusCode).toBe(401);
-  expect(response.body).toEqual({ error: "Authentication required" });
+  expect(response.body).toEqual({
+    error: "Authentication required",
+    errorCode: "authentication_required",
+  });
 }
 
 describe("authMiddleware.requireAuth", () => {

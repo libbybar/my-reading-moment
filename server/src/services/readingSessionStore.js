@@ -101,6 +101,20 @@ function completeSession(sessionId) {
   return structuredClone(session);
 }
 
+// Dropped rather than completed, so a stale client gets "not found" and no TextResult is written.
+function discardActiveSessionForChild(parentId, childId) {
+  const sessionId = activeSessionIdByChildKey.get(childKey(parentId, childId));
+
+  if (!sessionId) {
+    return false;
+  }
+
+  sessions.delete(sessionId);
+  activeSessionIdByChildKey.delete(childKey(parentId, childId));
+
+  return true;
+}
+
 function replaceCurrentQuestion(sessionId, question) {
   const session = sessions.get(sessionId);
 
@@ -146,6 +160,7 @@ export {
   tryClaimSession,
   releaseSession,
   completeSession,
+  discardActiveSessionForChild,
   replaceCurrentQuestion,
   recordIncorrectAttempt,
   hasActiveSessionForChild,
@@ -159,6 +174,7 @@ export default {
   tryClaimSession,
   releaseSession,
   completeSession,
+  discardActiveSessionForChild,
   replaceCurrentQuestion,
   recordIncorrectAttempt,
   hasActiveSessionForChild,

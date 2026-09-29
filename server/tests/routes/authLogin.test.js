@@ -53,7 +53,10 @@ describe("POST /api/auth/login", () => {
       .send({ email: "parent@example.com", password: "wrong-password" });
 
     expect(response.statusCode).toBe(401);
-    expect(response.body).toEqual({ error: "Invalid email or password" });
+    expect(response.body).toEqual({
+      error: "Invalid email or password",
+      errorCode: "login_invalid_credentials",
+    });
     expect(response.headers["set-cookie"]).toBeUndefined();
   });
 
@@ -63,7 +66,10 @@ describe("POST /api/auth/login", () => {
       .send({ email: "nobody@example.com", password: "whatever123" });
 
     expect(response.statusCode).toBe(401);
-    expect(response.body).toEqual({ error: "Invalid email or password" });
+    expect(response.body).toEqual({
+      error: "Invalid email or password",
+      errorCode: "login_invalid_credentials",
+    });
   });
 
   test.each([
@@ -74,7 +80,22 @@ describe("POST /api/auth/login", () => {
     const response = await request(app).post("/api/auth/login").send(body);
 
     expect(response.statusCode).toBe(400);
-    expect(response.body).toEqual({ error: expect.any(String) });
+    expect(response.body).toMatchObject({
+      error: "Invalid login details",
+      errorCode: "login_invalid_input",
+    });
+  });
+
+  test("returns 400 (not a 500) for a request sent with no body at all", async () => {
+    // Deliberately no .send() — req.body is undefined here, not {}, since
+    // express.json() never runs without a JSON Content-Type/body.
+    const response = await request(app).post("/api/auth/login");
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toMatchObject({
+      error: "Invalid login details",
+      errorCode: "login_invalid_input",
+    });
   });
 
   test("updates lastLoginAt on successful login", async () => {

@@ -10,6 +10,9 @@ function TextField({
   id,
   ariaLabel,
   type = 'text',
+  inputMode,
+  maxLength,
+  autoComplete,
 }) {
   return (
     <StyledTextField
@@ -22,6 +25,9 @@ function TextField({
       name={name}
       id={id}
       aria-label={ariaLabel}
+      inputMode={inputMode}
+      maxLength={maxLength}
+      autoComplete={autoComplete}
     />
   )
 }

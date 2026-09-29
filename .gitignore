@@ -7,6 +7,7 @@ coverage/
 .DS_Store
 .claude/settings.local.json
 AGENTS.md
+CLAUDE.md
 server/logs/
 Project requirements.pdf
-Project requirements.pdf:Zone.Identifier
+*:Zone.Identifier
