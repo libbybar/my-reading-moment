@@ -18,25 +18,3 @@ export const ProfileGrid = styled.div`
   gap: 24px;
   margin-bottom: 20px;
 `
-
-export const ProfileCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-`
-
-export const ProfileForm = styled.form`
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  width: 100%;
-  max-width: 320px;
-  margin: 0 auto;
-`
-
-export const FormActions = styled.div`
-  display: flex;
-  gap: 12px;
-`

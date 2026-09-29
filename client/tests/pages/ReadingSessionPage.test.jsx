@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ReadingSessionPage from '../../src/pages/ReadingSessionPage'
@@ -78,11 +78,59 @@ function getReplacementButton() {
   })
 }
 
+function getSkipButton() {
+  return screen.getByRole('button', {
+    name: resolveText('readingSession.skipButtonLabel'),
+  })
+}
+
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
 }
 
-function mockFetchRoutes({ preview, answers, nextQuestion }) {
+// Minimal ReadableStream-shaped response for streamReadingExercise's NDJSON parser.
+function okNdjson(events) {
+  const encoder = new TextEncoder()
+  const lines = events.map((event) => `${JSON.stringify(event)}\n`)
+  let index = 0
+
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => ({
+        read: () => {
+          if (index >= lines.length) {
+            return Promise.resolve({ done: true, value: undefined })
+          }
+
+          const value = encoder.encode(lines[index])
+          index += 1
+
+          return Promise.resolve({ done: false, value })
+        },
+      }),
+    },
+  })
+}
+
+function okPreviewStream(exercise) {
+  return okNdjson([
+    { type: 'title', title: exercise.title },
+    { type: 'chunk', text: exercise.story },
+    {
+      type: 'done',
+      title: exercise.title,
+      story: exercise.story,
+      passageId: exercise.passageId,
+      sessionId: exercise.sessionId,
+      question: exercise.question ?? null,
+      grammaticalGender: exercise.grammaticalGender,
+    },
+  ])
+}
+
+function mockFetchRoutes({ preview, answers, nextQuestion, question, skip }) {
   globalThis.fetch = vi.fn((url) => {
     if (url === '/api/reading-sessions/preview') {
       return preview()
@@ -102,18 +150,43 @@ function mockFetchRoutes({ preview, answers, nextQuestion }) {
       return nextQuestion()
     }
 
+    if (url === '/api/reading-sessions/question') {
+      if (!question) {
+        return Promise.reject(
+          new Error('Unexpected fetch call to /api/reading-sessions/question'),
+        )
+      }
+
+      return question()
+    }
+
+    if (url === '/api/reading-sessions/skip') {
+      if (!skip) {
+        return Promise.reject(new Error('Unexpected fetch call to /api/reading-sessions/skip'))
+      }
+
+      return skip()
+    }
+
     return Promise.reject(new Error(`Unexpected fetch call to ${url}`))
   })
 }
 
-async function renderWithExerciseLoaded(exercise, answers, nextQuestion) {
+// Drives through the real reading -> POST /question handoff for answer-focused tests.
+async function renderWithExerciseLoaded(exercise, answers, nextQuestion, question, skip) {
   mockFetchRoutes({
-    preview: () => okJson(exercise),
+    preview: () => okPreviewStream({ ...exercise, question: null }),
     answers: answers ?? (() => okJson({})),
     nextQuestion,
+    question: question ?? (() => okJson({ question: exercise.question })),
+    skip,
   })
 
   renderPage()
+
+  fireEvent.click(await screen.findByRole('button', {
+    name: resolveText('readingSession.finishedReadingButtonLabel'),
+  }))
 
   await screen.findByText(exercise.question.prompt)
 }
@@ -138,7 +211,7 @@ async function driveThreeIncorrectAttemptsToLimit() {
     )
 
   mockFetchRoutes({
-    preview: () => okJson(mockExercise),
+    preview: () => okPreviewStream(mockExercise),
     answers: answersMock,
     nextQuestion: nextQuestionMock,
   })
@@ -202,7 +275,7 @@ describe('ReadingSessionPage', () => {
   })
 
   it('automatically requests the preview using the active child id on mount, with no selection step', async () => {
-    mockFetchRoutes({ preview: () => okJson(mockExercise) })
+    mockFetchRoutes({ preview: () => okPreviewStream(mockExercise) })
 
     renderPage()
 
@@ -220,7 +293,7 @@ describe('ReadingSessionPage', () => {
   })
 
   it('calls /preview exactly once under StrictMode double-mounted effects, since it creates a server-side session', async () => {
-    mockFetchRoutes({ preview: () => okJson(mockExercise) })
+    mockFetchRoutes({ preview: () => okPreviewStream(mockExercise) })
 
     renderPage()
 
@@ -237,7 +310,11 @@ describe('ReadingSessionPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText(TEXT.readingSession.loading)).toBeInTheDocument()
+    // Purely visual (an animated bar, no caption) — the accessible name is
+    // carried by aria-label on the status region, not visible text content.
+    expect(
+      await screen.findByRole('status', { name: TEXT.readingSession.loading }),
+    ).toBeInTheDocument()
   })
 
   it('displays the error message when the preview request fails', async () => {
@@ -562,34 +639,17 @@ describe('ReadingSessionPage', () => {
     resolveAnswerCheck(okJson({ questionId: 'test-question-1', isCorrect: true, feedbackType: 'correct', textOutcome: 'success' }))
   })
 
-  it('renders the localized fallback instead of an empty question section when question is null', async () => {
-    const exerciseWithNullQuestion = { ...mockExercise, question: null }
-
-    mockFetchRoutes({
-      preview: () => okJson(exerciseWithNullQuestion),
-      answers: () => okJson({}),
-    })
-
-    renderPage()
-
-    expect(
-      await screen.findByText(
-        resolveText('readingSession.noMoreQuestionsFallbackMessage', {
-          grammaticalGender: 'female',
-        }),
-      ),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  })
-
-  it('renders the localized fallback instead of an empty question section when question is malformed', async () => {
+  it('renders the localized fallback instead of an empty question section for a resumed session with a malformed question', async () => {
+    // /preview's `question` is only ever null or a fully-valid safe object in
+    // the real server contract, but a resumed session's response is still
+    // validated defensively here, the same as any other remote data.
     const exerciseWithMalformedQuestion = {
       ...mockExercise,
       question: { passageId: 'test-passage-1' },
     }
 
     mockFetchRoutes({
-      preview: () => okJson(exerciseWithMalformedQuestion),
+      preview: () => okPreviewStream(exerciseWithMalformedQuestion),
       answers: () => okJson({}),
     })
 
@@ -897,5 +957,295 @@ describe('ReadingSessionPage', () => {
     fireEvent.click(returnButton)
 
     expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
+  })
+
+  describe('skip', () => {
+    it('shows a skip button while answering', async () => {
+      await renderWithExerciseLoaded(mockExercise)
+
+      expect(getSkipButton()).toBeInTheDocument()
+    })
+
+    it('does not show a skip button while checking', async () => {
+      await renderWithExerciseLoaded(
+        mockExercise,
+        () => new Promise(() => {}),
+      )
+
+      fireEvent.click(getSubmitButton())
+
+      expect(
+        screen.queryByRole('button', { name: resolveText('readingSession.skipButtonLabel') }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not show a skip button in the retry state', async () => {
+      await renderInRetryState(mockExercise)
+
+      expect(
+        screen.queryByRole('button', { name: resolveText('readingSession.skipButtonLabel') }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('calls skipSession with exactly the sessionId when clicked', async () => {
+      await renderWithExerciseLoaded(mockExercise, undefined, undefined, undefined, () => okJson({ skipped: true }))
+
+      fireEvent.click(getSkipButton())
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/reading-sessions/skip',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ sessionId: 'test-session-1' }),
+        }),
+      )
+    })
+
+    it('shows the disabled skipping label while the request is pending', async () => {
+      let resolveSkip
+      await renderWithExerciseLoaded(
+        mockExercise,
+        undefined,
+        undefined,
+        undefined,
+        () => new Promise((resolve) => { resolveSkip = resolve }),
+      )
+
+      fireEvent.click(getSkipButton())
+
+      const skippingButton = screen.getByRole('button', {
+        name: resolveText('readingSession.skippingLabel'),
+      })
+      expect(skippingButton).toBeDisabled()
+      expect(getAnswerField()).toBeDisabled()
+      expect(getSubmitButton()).toBeDisabled()
+
+      resolveSkip(okJson({ skipped: true }))
+    })
+
+    it('does not call the service again on a second click while skipping', async () => {
+      let resolveSkip
+      await renderWithExerciseLoaded(
+        mockExercise,
+        undefined,
+        undefined,
+        undefined,
+        () => new Promise((resolve) => { resolveSkip = resolve }),
+      )
+
+      const skipButton = getSkipButton()
+      fireEvent.click(skipButton)
+
+      // Bypass the disabled attribute to exercise the synchronous ref guard.
+      screen.getByRole('button', { name: resolveText('readingSession.skippingLabel') }).disabled = false
+      fireEvent.click(
+        screen.getByRole('button', { name: resolveText('readingSession.skippingLabel') }),
+      )
+
+      const skipCalls = globalThis.fetch.mock.calls.filter(
+        (call) => call[0] === '/api/reading-sessions/skip',
+      )
+      expect(skipCalls).toHaveLength(1)
+
+      resolveSkip(okJson({ skipped: true }))
+    })
+
+    it('shows the resolved skipped-feedback text and a return-to-path action on success', async () => {
+      await renderWithExerciseLoaded(mockExercise, undefined, undefined, undefined, () => okJson({ skipped: true }))
+
+      fireEvent.click(getSkipButton())
+
+      expect(
+        await screen.findByText(resolveText('readingSession.skippedFeedbackMessage')),
+      ).toBeInTheDocument()
+      expect(getReturnToPathButton()).toBeInTheDocument()
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    })
+
+    it('clicking return-to-path after a skip navigates to /child-home', async () => {
+      await renderWithExerciseLoaded(mockExercise, undefined, undefined, undefined, () => okJson({ skipped: true }))
+
+      fireEvent.click(getSkipButton())
+      await screen.findByText(resolveText('readingSession.skippedFeedbackMessage'))
+
+      fireEvent.click(getReturnToPathButton())
+
+      expect(await screen.findByText('CHILD_HOME_SENTINEL')).toBeInTheDocument()
+    })
+
+    it('shows the resolved error text when the skip request is rejected', async () => {
+      await renderWithExerciseLoaded(
+        mockExercise,
+        undefined,
+        undefined,
+        undefined,
+        () => Promise.resolve({ ok: false, status: 500 }),
+      )
+
+      fireEvent.click(getSkipButton())
+
+      expect(
+        await screen.findByText(
+          resolveText('readingSession.answerCycleErrorMessage', { grammaticalGender: 'female' }),
+        ),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('reading phase (before the question is fetched)', () => {
+    async function renderFreshPreview(question) {
+      mockFetchRoutes({
+        preview: () => okPreviewStream({ ...mockExercise, question: null }),
+        answers: () => okJson({}),
+        question,
+      })
+
+      renderPage()
+
+      const button = await screen.findByRole('button', {
+        name: resolveText('readingSession.finishedReadingButtonLabel'),
+      })
+
+      // findByRole resolving only guarantees the DOM reflects readingPhase
+      // === 'reading' — not that the window keydown-listener effect (which
+      // depends on that same state and commits in a separate passive-effect
+      // pass) has actually run yet. Without this flush, firing a synthetic
+      // keydown immediately after can race ahead of the listener being
+      // attached — intermittently, only when run alongside other suites
+      // (observed ~1-in-10 in the full suite, unreproducible in isolation).
+      await act(async () => {})
+
+      return button
+    }
+
+    function questionCallCount() {
+      return globalThis.fetch.mock.calls.filter(
+        (call) => call[0] === '/api/reading-sessions/question',
+      ).length
+    }
+
+    it('shows the finished-reading button and no question yet, right after /preview', async () => {
+      await renderFreshPreview(() => new Promise(() => {}))
+
+      expect(screen.queryByText(mockExercise.question.prompt)).not.toBeInTheDocument()
+      expect(questionCallCount()).toBe(0)
+    })
+
+    it('a resumed session with an already-ready question skips the reading phase entirely', async () => {
+      mockFetchRoutes({ preview: () => okPreviewStream(mockExercise), answers: () => okJson({}) })
+
+      renderPage()
+
+      await screen.findByText(mockExercise.question.prompt)
+
+      expect(
+        screen.queryByRole('button', {
+          name: resolveText('readingSession.finishedReadingButtonLabel'),
+        }),
+      ).not.toBeInTheDocument()
+      expect(questionCallCount()).toBe(0)
+    })
+
+    it('fetches the question for the session and shows it once the button is clicked', async () => {
+      const button = await renderFreshPreview(() => okJson({ question: mockExercise.question }))
+
+      fireEvent.click(button)
+
+      expect(await screen.findByText(mockExercise.question.prompt)).toBeInTheDocument()
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/reading-sessions/question',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ sessionId: mockExercise.sessionId }),
+        }),
+      )
+    })
+
+    it('pressing Enter with nothing focused triggers the same fetch as clicking the button', async () => {
+      await renderFreshPreview(() => okJson({ question: mockExercise.question }))
+
+      fireEvent.keyDown(window, { key: 'Enter' })
+
+      expect(await screen.findByText(mockExercise.question.prompt)).toBeInTheDocument()
+    })
+
+    it('pressing Space with nothing focused triggers it too, and prevents the default (page scroll)', async () => {
+      await renderFreshPreview(() => okJson({ question: mockExercise.question }))
+
+      const notPrevented = fireEvent.keyDown(window, { key: ' ' })
+
+      expect(notPrevented).toBe(false) // false means preventDefault() was called
+      expect(await screen.findByText(mockExercise.question.prompt)).toBeInTheDocument()
+    })
+
+    it('does not act on a keydown targeting the finished-reading button itself, since native activation already handles it', async () => {
+      const button = await renderFreshPreview(() => new Promise(() => {}))
+
+      fireEvent.keyDown(button, { key: 'Enter' })
+
+      expect(questionCallCount()).toBe(0)
+    })
+
+    it('shows a loading message while the question is being fetched', async () => {
+      let resolveQuestion
+      const button = await renderFreshPreview(
+        () => new Promise((resolve) => { resolveQuestion = resolve }),
+      )
+
+      fireEvent.click(button)
+
+      expect(
+        await screen.findByText(resolveText('readingSession.loadingQuestionMessage')),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', {
+          name: resolveText('readingSession.finishedReadingButtonLabel'),
+        }),
+      ).not.toBeInTheDocument()
+
+      resolveQuestion(okJson({ question: mockExercise.question }))
+    })
+
+    it('shows a question-error state (not the old exhausted-fallback) when the fetch rejects, and lets the child retry', async () => {
+      const questionMock = vi
+        .fn()
+        .mockImplementationOnce(() => Promise.resolve({ ok: false, status: 500 }))
+        .mockImplementationOnce(() => okJson({ question: mockExercise.question }))
+
+      const button = await renderFreshPreview(questionMock)
+
+      fireEvent.click(button)
+
+      expect(
+        await screen.findByText(
+          resolveText('readingSession.questionErrorMessage', { grammaticalGender: 'female' }),
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          resolveText('readingSession.noMoreQuestionsFallbackMessage', { grammaticalGender: 'female' }),
+        ),
+      ).not.toBeInTheDocument()
+
+      const retryButton = screen.getByRole('button', {
+        name: resolveText('readingSession.retryFinishedReadingButtonLabel'),
+      })
+      fireEvent.click(retryButton)
+
+      expect(await screen.findByText(mockExercise.question.prompt)).toBeInTheDocument()
+    })
+
+    it('shows a question-error state when the response resolves with a null question', async () => {
+      const button = await renderFreshPreview(() => okJson({ question: null }))
+
+      fireEvent.click(button)
+
+      expect(
+        await screen.findByText(
+          resolveText('readingSession.questionErrorMessage', { grammaticalGender: 'female' }),
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    })
   })
 })

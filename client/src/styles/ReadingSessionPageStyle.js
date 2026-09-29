@@ -1,8 +1,11 @@
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
+import { motion } from 'motion/react'
 import Card from '../components/ui/Card'
 
-// Reading passages need more width than compact form cards.
-export const ExerciseCard = styled(Card)`
+export const ExerciseCard = styled(motion.create(Card))`
+  position: relative;
+  z-index: 1;
+
   @media (min-width: 768px) {
     max-width: 700px;
     padding: 48px;
@@ -96,6 +99,52 @@ export const QuestionsList = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 12px;
+`
+
+// Purely visual "something is happening" indicator while the story streams
+// in — no caption, the movement itself is the message. Loops rather than
+// claiming a real percentage, since the actual wait time is unknown up front.
+export const StoryLoadingWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+`
+
+const fillLoop = keyframes`
+  0% { width: 6%; }
+  50% { width: 96%; }
+  100% { width: 6%; }
+`
+
+export const LoadingBarTrack = styled.div`
+  width: 100%;
+  max-width: 220px;
+  height: 14px;
+  border-radius: 999px;
+  background: ${(props) => props.theme.colors.primaryLight};
+  overflow: hidden;
+  position: relative;
+`
+
+export const LoadingBarFill = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    ${(props) => props.theme.colors.primary},
+    ${(props) => props.theme.colors.accent}
+  );
+  animation: ${fillLoop} 2.2s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    width: 60%;
+  }
 `
 
 export const QuestionItem = styled.li`

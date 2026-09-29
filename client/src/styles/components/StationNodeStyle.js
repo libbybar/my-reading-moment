@@ -13,6 +13,16 @@ const StationCircle = styled.div`
     width: 48px;
     height: 48px;
   }
+
+  @media (min-width: 1280px) {
+    width: 64px;
+    height: 64px;
+  }
+
+  @media (min-width: 1600px) {
+    width: 72px;
+    height: 72px;
+  }
 `
 
 export const ActiveStationCircle = styled(StationCircle)`
@@ -58,6 +68,14 @@ export const ActiveStationButton = styled.button`
   @media (max-width: 480px) {
     width: 56px;
   }
+
+  @media (min-width: 1280px) {
+    width: 72px;
+  }
+
+  @media (min-width: 1600px) {
+    width: 80px;
+  }
 `
 
 export const LockedStationWrapper = styled.div`
@@ -73,6 +91,14 @@ export const LockedStationWrapper = styled.div`
 
   @media (max-width: 480px) {
     width: 56px;
+  }
+
+  @media (min-width: 1280px) {
+    width: 72px;
+  }
+
+  @media (min-width: 1600px) {
+    width: 80px;
   }
 `
 
@@ -90,10 +116,22 @@ export const CompletedStationWrapper = styled.div`
   @media (max-width: 480px) {
     width: 56px;
   }
+
+  @media (min-width: 1280px) {
+    width: 72px;
+  }
+
+  @media (min-width: 1600px) {
+    width: 80px;
+  }
 `
 
 export const StepNumber = styled.span`
   font-family: ${(props) => props.theme.fonts.main};
   font-size: 24px;
   font-weight: 700;
+
+  @media (min-width: 1280px) {
+    font-size: 28px;
+  }
 `

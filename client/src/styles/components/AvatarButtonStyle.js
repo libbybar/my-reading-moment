@@ -5,7 +5,7 @@ export const StyledAvatarButton = styled.button`
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 92px;
+  width: 104px;
   border: none;
   background: none;
   padding: 0;
@@ -23,13 +23,13 @@ export const StyledAvatarButton = styled.button`
   }
 
   @media (max-width: 480px) {
-    width: 80px;
+    width: 88px;
   }
 `
 
 export const AvatarCircle = styled.div`
-  width: 72px;
-  height: 72px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: ${(props) => props.theme.colors.primaryLight};
   color: ${(props) => props.theme.colors.primaryDark};
@@ -38,14 +38,22 @@ export const AvatarCircle = styled.div`
   justify-content: center;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
 
-  svg {
-    width: 32px;
-    height: 32px;
+  svg,
+  img {
+    width: 66px;
+    height: 66px;
+    object-fit: contain;
   }
 
   @media (max-width: 480px) {
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
+
+    svg,
+    img {
+      width: 56px;
+      height: 56px;
+    }
   }
 `
 
@@ -54,12 +62,12 @@ export const AvatarDisplayWrapper = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 92px;
+  width: 104px;
   font-family: ${(props) => props.theme.fonts.main};
   color: ${(props) => props.theme.colors.text};
 
   @media (max-width: 480px) {
-    width: 80px;
+    width: 88px;
   }
 `
 

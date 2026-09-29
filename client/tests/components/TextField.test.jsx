@@ -18,6 +18,20 @@ function renderTextField(props) {
 }
 
 describe('TextField', () => {
+  it('forwards inputMode, maxLength and autoComplete to the input', () => {
+    renderTextField({
+      ariaLabel: 'PIN',
+      inputMode: 'numeric',
+      maxLength: 4,
+      autoComplete: 'off',
+    })
+
+    const input = screen.getByRole('textbox', { name: 'PIN' })
+    expect(input).toHaveAttribute('inputmode', 'numeric')
+    expect(input).toHaveAttribute('maxlength', '4')
+    expect(input).toHaveAttribute('autocomplete', 'off')
+  })
+
   it('renders the supplied value', () => {
     renderTextField({ value: 'hello', ariaLabel: 'Answer' })
 

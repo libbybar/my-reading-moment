@@ -45,3 +45,10 @@ export function register({ email, password }) {
     body: JSON.stringify({ email, password }),
   }).then(parseJsonResponse)
 }
+
+export function logout() {
+  return fetch(`${AUTH_BASE_URL}/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  }).then(parseJsonResponse)
+}

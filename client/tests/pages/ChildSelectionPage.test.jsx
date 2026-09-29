@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { ThemeProvider } from 'styled-components'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ChildSelectionPage from '../../src/pages/ChildSelectionPage'
@@ -42,6 +42,7 @@ function renderPage() {
             <Routes>
               <Route path="/children" element={<ChildSelectionPage />} />
               <Route path="/login" element={<div>LOGIN_SENTINEL</div>} />
+              <Route path="/parent-zone" element={<div>PARENT_ZONE_SENTINEL</div>} />
             </Routes>
           </MemoryRouter>
         </ActiveChildProvider>
@@ -50,18 +51,27 @@ function renderPage() {
   )
 }
 
+// The muted parent-zone entry point is always present, regardless of
+// loading/error/empty state, so it's excluded from the "no other buttons"
+// checks below rather than asserted away.
+function queryNonEntryButtons() {
+  return screen
+    .queryAllByRole('button')
+    .filter((button) => button.getAttribute('aria-label') !== TEXT.parentZone.entryButtonAriaLabel)
+}
+
 function expectOnlyLoadingVisible() {
   expect(screen.getByText(TEXT.childSelection.loading)).toBeInTheDocument()
   expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
   expect(screen.queryByText(TEXT.childSelection.emptyMessage)).not.toBeInTheDocument()
-  expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  expect(queryNonEntryButtons()).toHaveLength(0)
 }
 
 function expectOnlyErrorVisible() {
   expect(screen.getByText(TEXT.childSelection.error)).toBeInTheDocument()
   expect(screen.queryByText(TEXT.childSelection.loading)).not.toBeInTheDocument()
   expect(screen.queryByText(TEXT.childSelection.emptyMessage)).not.toBeInTheDocument()
-  expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  expect(queryNonEntryButtons()).toHaveLength(0)
 }
 
 beforeEach(() => {
@@ -119,30 +129,44 @@ describe('ChildSelectionPage', () => {
     expect(screen.queryByText(TEXT.childSelection.error)).not.toBeInTheDocument()
   })
 
-  it('shows an edit button for each profile and an add-child button, on top of the selection buttons', async () => {
+  it('shows an add-child affordance in the empty state that leads to the parent zone', async () => {
+    fetchChildProfiles.mockResolvedValue({ childProfiles: [] })
+
+    renderPage()
+
+    const addButton = await screen.findByRole('button', { name: TEXT.childSelection.addButtonLabel })
+    fireEvent.click(addButton)
+
+    expect(await screen.findByText('PARENT_ZONE_SENTINEL')).toBeInTheDocument()
+  })
+
+  it('renders no editing or profile-management controls — only the avatar picker and the muted parent-zone entry point', async () => {
     fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
 
     renderPage()
 
     await screen.findByRole('button', { name: GENERIC_PROFILES[0].name })
 
-    expect(screen.getAllByRole('button', { name: TEXT.childSelection.editButtonLabel })).toHaveLength(
-      GENERIC_PROFILES.length,
-    )
-    expect(screen.getByRole('button', { name: TEXT.childSelection.addButtonLabel })).toBeInTheDocument()
-    // avatar + edit button per profile, plus the single "add child" button.
-    expect(screen.getAllByRole('button')).toHaveLength(GENERIC_PROFILES.length * 2 + 1)
+    expect(screen.getAllByRole('button')).toHaveLength(GENERIC_PROFILES.length + 1)
+    expect(
+      screen.queryByRole('button', { name: TEXT.childSelection.editButtonLabel }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: TEXT.childSelection.addButtonLabel }),
+    ).not.toBeInTheDocument()
   })
 
-  it('shows the add-child button even when there are no existing profiles to edit', async () => {
-    fetchChildProfiles.mockResolvedValue({ childProfiles: [] })
+  it('navigates to /parent-zone when the parent-zone entry point is clicked', async () => {
+    fetchChildProfiles.mockResolvedValue({ childProfiles: GENERIC_PROFILES })
 
     renderPage()
 
-    expect(
-      await screen.findByRole('button', { name: TEXT.childSelection.addButtonLabel }),
-    ).toBeInTheDocument()
-    expect(screen.getAllByRole('button')).toHaveLength(1)
+    const entryButton = await screen.findByRole('button', {
+      name: TEXT.parentZone.entryButtonAriaLabel,
+    })
+    fireEvent.click(entryButton)
+
+    expect(await screen.findByText('PARENT_ZONE_SENTINEL')).toBeInTheDocument()
   })
 
   it('shows only the localized error state when the service call rejects with a service-level failure', async () => {
