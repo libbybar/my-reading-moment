@@ -1,6 +1,8 @@
+import { getMissionBlueprint } from "../../src/data/learningMissions.js";
 import {
   buildPassagePrompt,
   buildQuestionPrompt,
+  buildLearningItemPrompt,
   buildEvaluationSystemInstruction,
   buildEvaluationContent,
 } from "../../src/services/llmProvider/prompts.js";
@@ -216,5 +218,68 @@ describe("buildEvaluationSystemInstruction", () => {
     const instruction = buildEvaluationSystemInstruction();
 
     expect(instruction).not.toContain("מה קרה");
+  });
+});
+
+describe("buildLearningItemPrompt", () => {
+  const baseRequest = {
+    blueprint: getMissionBlueprint("cause-and-effect"),
+    readabilityBand: { level: 1, sublevel: 1 },
+    interest: null,
+    recentItems: [],
+  };
+
+  test("carries the mission skill and its generation constraints", () => {
+    const prompt = buildLearningItemPrompt(baseRequest);
+
+    expect(prompt).toContain(baseRequest.blueprint.skillFocus);
+    baseRequest.blueprint.generationConstraints.forEach((constraint) => {
+      expect(prompt).toContain(constraint);
+    });
+  });
+
+  test("raises the passage length to the mission minimum when the band allows fewer sentences", () => {
+    const prompt = buildLearningItemPrompt({
+      ...baseRequest,
+      blueprint: getMissionBlueprint("event-sequence"),
+    });
+
+    expect(prompt).toContain("4 עד 4 משפטים");
+  });
+
+  test("keeps the band's own length range when it already satisfies the mission", () => {
+    const prompt = buildLearningItemPrompt({ ...baseRequest, readabilityBand: { level: 4, sublevel: 4 } });
+
+    expect(prompt).toContain("10 עד 14 משפטים");
+  });
+
+  test("asks for nikud according to the readability band", () => {
+    expect(buildLearningItemPrompt(baseRequest)).toContain("ניקוד מלא");
+    expect(buildLearningItemPrompt({ ...baseRequest, readabilityBand: { level: 4, sublevel: 4 } })).toContain(
+      "אל תשתמשי בניקוד כלל",
+    );
+  });
+
+  test("mentions the interest label only when one is given", () => {
+    expect(buildLearningItemPrompt(baseRequest)).not.toContain("חלל");
+    expect(buildLearningItemPrompt({ ...baseRequest, interest: "space" })).toContain("חלל");
+  });
+
+  test("lists recent variation signatures but never content fingerprints", () => {
+    const prompt = buildLearningItemPrompt({
+      ...baseRequest,
+      recentItems: [
+        { variationSignature: "דמות: תמר; מקום: חוף", contentFingerprint: "abc123fingerprint" },
+        { variationSignature: "דמות: רן; מקום: יער", contentFingerprint: "def456fingerprint" },
+      ],
+    });
+
+    expect(prompt).toContain("דמות: תמר; מקום: חוף");
+    expect(prompt).toContain("דמות: רן; מקום: יער");
+    expect(prompt).not.toContain("fingerprint");
+  });
+
+  test("omits the recent-stories instruction when nothing is recent", () => {
+    expect(buildLearningItemPrompt(baseRequest)).not.toContain("החתימות הבאות");
   });
 });

@@ -1,10 +1,15 @@
 import { jest } from "@jest/globals";
-import { runLlmProviderContractTests } from "../support/llmProviderContract.js";
+import mockLearningItemsByMissionId from "../../src/data/mockLearningItems.js";
+import {
+  runLlmProviderContractTests,
+  runLearningItemContractTests,
+} from "../support/llmProviderContract.js";
 
 const geminiClient = {
   generateJson: jest.fn(),
   generateTextStream: jest.fn(),
   QUESTION_RESPONSE_SCHEMA: {},
+  LEARNING_ITEM_RESPONSE_SCHEMA: { marker: "learning-item-schema" },
   EVALUATION_RESPONSE_SCHEMA: {},
 };
 
@@ -67,6 +72,122 @@ describe("geminiProvider", () => {
     },
     level: 1,
     sublevel: 1,
+  });
+
+  describe("generateLearningItem with Gemini", () => {
+    const missionId = "explicit-detail";
+    const readabilityBand = { level: 1, sublevel: 1 };
+    const [firstRawItem, secondRawItem] = mockLearningItemsByMissionId[missionId];
+
+    // Stands in for Gemini producing a different story on each call.
+    beforeEach(() => {
+      let callCount = 0;
+
+      geminiClient.generateJson.mockImplementation(async () => {
+        const rawItem = mockLearningItemsByMissionId[missionId][callCount % 2];
+        callCount += 1;
+
+        return structuredClone(rawItem);
+      });
+    });
+
+    runLearningItemContractTests(geminiProvider, { missionId });
+
+    test("asks Gemini for JSON against the learning item schema, not the legacy question schema", async () => {
+      await geminiProvider.generateLearningItem({ missionId, readabilityBand });
+
+      expect(geminiClient.generateJson).toHaveBeenCalledWith(
+        expect.objectContaining({ responseSchema: geminiClient.LEARNING_ITEM_RESPONSE_SCHEMA }),
+      );
+    });
+
+    test("builds the prompt from the blueprint, readability band, interest and recent signatures only", async () => {
+      await geminiProvider.generateLearningItem({
+        missionId,
+        readabilityBand,
+        interest: "space",
+        recentItems: [{ variationSignature: "דמות: תמר; מקום: חוף", contentFingerprint: "fingerprint" }],
+      });
+
+      const { prompt } = geminiClient.generateJson.mock.calls[0][0];
+
+      expect(prompt).toContain("איתור פרט שכתוב במפורש בקטע");
+      expect(prompt).toContain("חלל");
+      expect(prompt).toContain("דמות: תמר; מקום: חוף");
+      expect(prompt).not.toContain("fingerprint");
+    });
+
+    test("rejects an invalid request without calling Gemini", async () => {
+      await expect(
+        geminiProvider.generateLearningItem({ missionId: "not-a-mission", readabilityBand }),
+      ).rejects.toThrow();
+
+      expect(geminiClient.generateJson).not.toHaveBeenCalled();
+    });
+
+    test("ignores an id and fingerprint that Gemini supplies", async () => {
+      geminiClient.generateJson.mockResolvedValue({
+        ...structuredClone(firstRawItem),
+        itemId: "gemini-chosen-id",
+        contentFingerprint: "gemini-chosen-fingerprint",
+      });
+
+      const item = await geminiProvider.generateLearningItem({ missionId, readabilityBand });
+
+      expect(item.itemId).not.toBe("gemini-chosen-id");
+      expect(item.contentFingerprint).not.toBe("gemini-chosen-fingerprint");
+    });
+
+    test.each([
+      ["a response without activities", (raw) => delete raw.activities],
+      ["an unsupported activity type", (raw) => (raw.activities[1].type = "essay")],
+      ["duplicate options", (raw) => (raw.activities[0].options = ["אדום", "אדום", "כחול"])],
+      ["an evidence quote missing from the passage", (raw) => (raw.activities[0].evidenceQuote = "ציטוט שלא קיים")],
+    ])("rejects %s from Gemini", async (_name, corrupt) => {
+      const rawItem = structuredClone(firstRawItem);
+      corrupt(rawItem);
+      geminiClient.generateJson.mockResolvedValue(rawItem);
+
+      await expect(geminiProvider.generateLearningItem({ missionId, readabilityBand })).rejects.toThrow();
+    });
+
+    test("rejects an item Gemini repeats after it was already used", async () => {
+      geminiClient.generateJson.mockResolvedValue(structuredClone(firstRawItem));
+      const first = await geminiProvider.generateLearningItem({ missionId, readabilityBand });
+
+      await expect(
+        geminiProvider.generateLearningItem({
+          missionId,
+          readabilityBand,
+          recentItems: [
+            { variationSignature: first.variationSignature, contentFingerprint: first.contentFingerprint },
+          ],
+        }),
+      ).rejects.toThrow();
+    });
+
+    test("accepts a different story after the first was used", async () => {
+      const first = await geminiProvider.generateLearningItem({ missionId, readabilityBand });
+      geminiClient.generateJson.mockResolvedValue(structuredClone(secondRawItem));
+
+      await expect(
+        geminiProvider.generateLearningItem({
+          missionId,
+          readabilityBand,
+          recentItems: [
+            { variationSignature: first.variationSignature, contentFingerprint: first.contentFingerprint },
+          ],
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    test("propagates a Gemini call failure", async () => {
+      geminiClient.generateJson.mockRejectedValue(new Error("Gemini unavailable"));
+
+      await expect(geminiProvider.generateLearningItem({ missionId, readabilityBand })).rejects.toThrow(
+        "Gemini unavailable",
+      );
+    });
   });
 
   describe("gemini-specific behavior", () => {

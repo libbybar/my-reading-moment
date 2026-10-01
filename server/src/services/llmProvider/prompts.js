@@ -76,6 +76,49 @@ function buildQuestionPrompt({ passage }) {
   ].join("\n\n");
 }
 
+const LEARNING_ITEM_ACTIVITY_GUIDANCE = [
+  "צרי בדיוק שתי פעילויות על הקטע: פעילות אחת מסוג multiple-choice ופעילות אחת מסוג short-answer.",
+  "בפעילות multiple-choice: שלוש או ארבע אפשרויות שונות זו מזו, ו-canonicalAnswer זהה במדויק לאחת מהן.",
+  "בפעילות short-answer: options הוא מערך ריק, ו-canonicalAnswer הוא התשובה הקצרה הנכונה.",
+  "בכל פעילות, evidenceQuote הוא ציטוט מילה במילה מתוך הקטע שמוכיח את התשובה.",
+  "כל שאלה חייבת להיות ניתנת למענה מתוך הקטע בלבד, בלי ידע חיצוני.",
+  "strategyHint הוא רמז לאסטרטגיית קריאה בלבד: אסור שיכיל תשובה, ציטוט או חלק מהם. נסחי אותו בלשון רבים או בשם פועל (למשל: כדאי לחפש), בלי פנייה בלשון זכר או נקבה.",
+  "variationSignature הוא תיאור קצר בשורה אחת של הדמות, המקום והפרט המרכזי בסיפור.",
+].join(" ");
+
+function buildRecentVariationsLine(recentItems) {
+  if (recentItems.length === 0) {
+    return "";
+  }
+
+  const signatures = recentItems.map((recentItem) => recentItem.variationSignature).join(" | ");
+
+  return `הילד/ה כבר קרא/ה סיפורים עם החתימות הבאות: ${signatures}. כתבי סיפור שונה מהם בדמות, במקום ובפרטים, עם תשובות שונות.`;
+}
+
+function buildLearningItemPrompt({ blueprint, readabilityBand, interest, recentItems }) {
+  const spec = getReadingLevelSpec(readabilityBand.level, readabilityBand.sublevel);
+  const minSentences = Math.max(spec.textLengthSentences.min, blueprint.readabilityConstraints.minSentences);
+  const maxSentences = Math.max(spec.textLengthSentences.max, minSentences);
+
+  return [
+    "כתבי קטע קריאה קצר בעברית עם שתי פעילויות הבנה, עבור ילד/ה שכבר מפענח/ת עברית בסיסית.",
+    `המיומנות שהפריט מתרגל: ${blueprint.skillFocus}.`,
+    blueprint.generationConstraints.join(" "),
+    PASSAGE_STORY_GUIDANCE,
+    getNikudGuidance(spec.nikud),
+    `כתבי קטע של כ-${minSentences} עד ${maxSentences} משפטים, כל משפט באורך של כ-${spec.wordsPerSentence.min} עד ${spec.wordsPerSentence.max} מילים.`,
+    `מבחינת אוצר מילים ומורפולוגיה: ${spec.vocabularyAndMorphology}.`,
+    `מבחינת תחביר: ${spec.syntax}.`,
+    interest ? buildInterestsLine([interest]) : "",
+    LEARNING_ITEM_ACTIVITY_GUIDANCE,
+    buildRecentVariationsLine(recentItems),
+    "תני גם כותרת קצרה לקטע.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 // answerText is child-controlled text; evaluation instructions live in the
 // system instruction, and the answer is treated only as tagged data.
 const EVALUATION_SYSTEM_INSTRUCTION = [
@@ -107,6 +150,7 @@ function buildEvaluationContent({ question, answerText }) {
 export {
   buildPassagePrompt,
   buildQuestionPrompt,
+  buildLearningItemPrompt,
   buildEvaluationSystemInstruction,
   buildEvaluationContent,
 };
