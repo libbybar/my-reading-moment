@@ -80,7 +80,7 @@ const LEARNING_ITEM_ACTIVITY_GUIDANCE = [
   "צרי בדיוק שתי פעילויות על הקטע: פעילות אחת מסוג multiple-choice ופעילות אחת מסוג short-answer.",
   "בפעילות multiple-choice: שלוש או ארבע אפשרויות שונות זו מזו, ו-canonicalAnswer זהה במדויק לאחת מהן.",
   "בפעילות short-answer: options הוא מערך ריק, ו-canonicalAnswer הוא התשובה הקצרה הנכונה.",
-  "בכל פעילות, evidenceQuote הוא ציטוט מילה במילה מתוך הקטע שמוכיח את התשובה.",
+  "בכל פעילות, evidenceQuotes הוא מערך של ציטוטים מילה במילה מתוך הקטע, כל ציטוט הוא ביטוי שלם שמופיע בקטע כפי שהוא, והם יחד מוכיחים את התשובה.",
   "כל שאלה חייבת להיות ניתנת למענה מתוך הקטע בלבד, בלי ידע חיצוני.",
   "strategyHint הוא רמז לאסטרטגיית קריאה בלבד: אסור שיכיל תשובה, ציטוט או חלק מהם. נסחי אותו בלשון רבים או בשם פועל (למשל: כדאי לחפש), בלי פנייה בלשון זכר או נקבה.",
   "variationSignature הוא תיאור קצר בשורה אחת של הדמות, המקום והפרט המרכזי בסיפור.",
@@ -112,6 +112,7 @@ function buildLearningItemPrompt({ blueprint, readabilityBand, interest, recentI
     `מבחינת תחביר: ${spec.syntax}.`,
     interest ? buildInterestsLine([interest]) : "",
     LEARNING_ITEM_ACTIVITY_GUIDANCE,
+    `בכל פעילות צריכים להיות לפחות ${blueprint.minEvidenceQuotesPerActivity} ציטוטי ראיה שונים.`,
     buildRecentVariationsLine(recentItems),
     "תני גם כותרת קצרה לקטע.",
   ]

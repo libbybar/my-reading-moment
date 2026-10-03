@@ -291,10 +291,12 @@ function runLearningItemContractTests(provider, { missionId }) {
       const item = await provider.generateLearningItem(request);
 
       item.activities.forEach((activity) => {
-        const plainQuote = activity.evidenceQuote.replace(/[.,!?]/g, "");
         const plainText = item.passage.text.replace(/[.,!?]/g, "");
 
-        expect(plainText).toContain(plainQuote);
+        expect(activity.evidenceQuotes.length).toBeGreaterThan(0);
+        activity.evidenceQuotes.forEach((quote) => {
+          expect(plainText).toContain(quote.replace(/[.,!?]/g, ""));
+        });
       });
     });
 

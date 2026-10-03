@@ -13,6 +13,7 @@ const ALL_ACTIVITY_TYPES = [ACTIVITY_TYPES.MULTIPLE_CHOICE, ACTIVITY_TYPES.SHORT
 const STORY_DETECTIVES_MISSIONS = [
   {
     missionId: "explicit-detail",
+    minEvidenceQuotesPerActivity: 1,
     skillFocus: "איתור פרט שכתוב במפורש בקטע",
     activityTypes: ALL_ACTIVITY_TYPES,
     readabilityConstraints: { minSentences: 2 },
@@ -24,6 +25,7 @@ const STORY_DETECTIVES_MISSIONS = [
   },
   {
     missionId: "event-sequence",
+    minEvidenceQuotesPerActivity: 1,
     skillFocus: "סידור אירועים לפי סדר התרחשותם בקטע",
     activityTypes: ALL_ACTIVITY_TYPES,
     readabilityConstraints: { minSentences: 4 },
@@ -35,6 +37,7 @@ const STORY_DETECTIVES_MISSIONS = [
   },
   {
     missionId: "cause-and-effect",
+    minEvidenceQuotesPerActivity: 1,
     skillFocus: "קישור בין סיבה שנאמרה בקטע לבין התוצאה שלה",
     activityTypes: ALL_ACTIVITY_TYPES,
     readabilityConstraints: { minSentences: 3 },
@@ -46,6 +49,7 @@ const STORY_DETECTIVES_MISSIONS = [
   },
   {
     missionId: "word-from-context",
+    minEvidenceQuotesPerActivity: 1,
     skillFocus: "הבנת משמעות של מילה פחות מוכרת מתוך המשפטים שסביבה",
     activityTypes: ALL_ACTIVITY_TYPES,
     readabilityConstraints: { minSentences: 3 },
@@ -60,6 +64,7 @@ const STORY_DETECTIVES_MISSIONS = [
   },
   {
     missionId: "simple-inference",
+    minEvidenceQuotesPerActivity: 2,
     skillFocus: "הסקת מסקנה שנתמכת בשני רמזים או יותר בקטע",
     activityTypes: ALL_ACTIVITY_TYPES,
     readabilityConstraints: { minSentences: 4 },

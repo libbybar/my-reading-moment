@@ -117,6 +117,31 @@ function validateMultipleChoiceOptions(activity) {
   }
 }
 
+// Whole-phrase matching: a fragment of a word must not count as evidence.
+function validateEvidenceQuotes(evidenceQuotes, { blueprint, normalizedPassage }) {
+  if (!Array.isArray(evidenceQuotes) || !evidenceQuotes.every(isNonBlankString)) {
+    throw new Error("Learning item activity needs evidenceQuotes as an array of non-blank strings");
+  }
+
+  const normalizedQuotes = evidenceQuotes.map(normalizeForMatching);
+
+  if (normalizedQuotes.some((quote) => quote.length === 0)) {
+    throw new Error("Learning item evidence quote has no words after normalization");
+  }
+
+  if (!normalizedQuotes.every((quote) => containsWholeWords(normalizedPassage, quote))) {
+    throw new Error("Learning item evidence quote does not appear in the passage");
+  }
+
+  if (new Set(normalizedQuotes).size < blueprint.minEvidenceQuotesPerActivity) {
+    throw new Error(
+      `Mission ${blueprint.missionId} needs ${blueprint.minEvidenceQuotesPerActivity} distinct evidence quotes per activity`,
+    );
+  }
+
+  return evidenceQuotes.map((quote) => quote.trim());
+}
+
 function validateActivity(activity, { blueprint, normalizedPassage }) {
   if (!activity || typeof activity !== "object") {
     throw new Error("Learning item activity is malformed");
@@ -128,15 +153,12 @@ function validateActivity(activity, { blueprint, normalizedPassage }) {
 
   if (
     !isNonBlankString(activity.prompt) ||
-    !isNonBlankString(activity.canonicalAnswer) ||
-    !isNonBlankString(activity.evidenceQuote)
+    !isNonBlankString(activity.canonicalAnswer)
   ) {
-    throw new Error("Learning item activity needs a prompt, canonicalAnswer and evidenceQuote");
+    throw new Error("Learning item activity needs a prompt and a canonicalAnswer");
   }
 
-  if (!normalizedPassage.includes(normalizeForMatching(activity.evidenceQuote))) {
-    throw new Error("Learning item evidence quote does not appear in the passage");
-  }
+  const evidenceQuotes = validateEvidenceQuotes(activity.evidenceQuotes, { blueprint, normalizedPassage });
 
   if (activity.type === ACTIVITY_TYPES.MULTIPLE_CHOICE) {
     validateMultipleChoiceOptions(activity);
@@ -149,7 +171,7 @@ function validateActivity(activity, { blueprint, normalizedPassage }) {
     prompt: activity.prompt.trim(),
     options: activity.options.map((option) => option.trim()),
     canonicalAnswer: activity.canonicalAnswer.trim(),
-    evidenceQuote: activity.evidenceQuote.trim(),
+    evidenceQuotes,
   };
 }
 
@@ -159,7 +181,7 @@ function assertHintDoesNotRevealAnswers(strategyHint, activities) {
   const normalizedHint = normalizeForMatching(strategyHint);
 
   activities.forEach((activity) => {
-    const revealing = [activity.canonicalAnswer, activity.evidenceQuote].some((secret) =>
+    const revealing = [activity.canonicalAnswer, ...activity.evidenceQuotes].some((secret) =>
       containsWholeWords(normalizedHint, normalizeForMatching(secret)),
     );
 

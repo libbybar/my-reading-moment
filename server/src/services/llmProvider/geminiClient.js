@@ -37,9 +37,9 @@ const LEARNING_ITEM_ACTIVITY_SCHEMA = {
     prompt: { type: Type.STRING },
     options: { type: Type.ARRAY, items: { type: Type.STRING } },
     canonicalAnswer: { type: Type.STRING },
-    evidenceQuote: { type: Type.STRING },
+    evidenceQuotes: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
-  required: ["type", "prompt", "options", "canonicalAnswer", "evidenceQuote"],
+  required: ["type", "prompt", "options", "canonicalAnswer", "evidenceQuotes"],
 };
 
 const LEARNING_ITEM_RESPONSE_SCHEMA = {

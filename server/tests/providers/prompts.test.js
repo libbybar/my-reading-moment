@@ -279,6 +279,16 @@ describe("buildLearningItemPrompt", () => {
     expect(prompt).not.toContain("fingerprint");
   });
 
+  test("asks for the mission's minimum number of evidence quotes per activity", () => {
+    const inferencePrompt = buildLearningItemPrompt({
+      ...baseRequest,
+      blueprint: getMissionBlueprint("simple-inference"),
+    });
+
+    expect(inferencePrompt).toContain("לפחות 2 ציטוטי ראיה שונים");
+    expect(buildLearningItemPrompt(baseRequest)).toContain("לפחות 1 ציטוטי ראיה שונים");
+  });
+
   test("omits the recent-stories instruction when nothing is recent", () => {
     expect(buildLearningItemPrompt(baseRequest)).not.toContain("החתימות הבאות");
   });

@@ -81,11 +81,11 @@ describe("buildValidatedLearningItem", () => {
     test("accepts an evidence quote that differs from the passage only in nikud and punctuation", () => {
       const item = validate(
         buildRawItem({
-          mutate: (raw) => (raw.activities[multipleChoice].evidenceQuote = "הִיא, לָקְחָה כדור אדום!"),
+          mutate: (raw) => (raw.activities[multipleChoice].evidenceQuotes = ["הִיא, לָקְחָה כדור אדום!"]),
         }),
       );
 
-      expect(item.activities[multipleChoice].evidenceQuote).toContain("לָקְחָה");
+      expect(item.activities[multipleChoice].evidenceQuotes[0]).toContain("לָקְחָה");
     });
 
     test("accepts a hint that contains an answer only as part of a longer word", () => {
@@ -116,9 +116,21 @@ describe("buildValidatedLearningItem", () => {
         }),
       "a blank activity prompt": (raw) => (raw.activities[multipleChoice].prompt = ""),
       "a missing canonical answer": (raw) => delete raw.activities[shortAnswer].canonicalAnswer,
-      "a missing evidence quote": (raw) => delete raw.activities[multipleChoice].evidenceQuote,
+      "missing evidence quotes": (raw) => delete raw.activities[multipleChoice].evidenceQuotes,
+      "evidence quotes that are not an array": (raw) =>
+        (raw.activities[multipleChoice].evidenceQuotes = "היא לקחה כדור אדום"),
+      "an empty evidence quote list": (raw) => (raw.activities[multipleChoice].evidenceQuotes = []),
+      "a blank evidence quote": (raw) => (raw.activities[multipleChoice].evidenceQuotes = ["  "]),
       "an evidence quote absent from the passage": (raw) =>
-        (raw.activities[shortAnswer].evidenceQuote = "הכלב אכל את הכדור"),
+        (raw.activities[shortAnswer].evidenceQuotes = ["הכלב אכל את הכדור"]),
+      "one absent quote next to a valid one": (raw) =>
+        (raw.activities[shortAnswer].evidenceQuotes = ["הכלב שלה רץ אחריה", "הכלב אכל את הכדור"]),
+      "an evidence quote that is only a fragment of a word": (raw) =>
+        (raw.activities[multipleChoice].evidenceQuotes = ["לקחה כד"]),
+      "an evidence quote that starts inside a word": (raw) =>
+        (raw.activities[multipleChoice].evidenceQuotes = ["דור אדום"]),
+      "an evidence quote that is only punctuation": (raw) =>
+        (raw.activities[multipleChoice].evidenceQuotes = ["...!?"]),
       "duplicate multiple-choice options": (raw) =>
         (raw.activities[multipleChoice].options = ["אדום", "אדום", "כחול"]),
       "multiple-choice options that differ only in nikud": (raw) =>
@@ -133,6 +145,10 @@ describe("buildValidatedLearningItem", () => {
         (raw.strategyHint = "כדאי לחפש את הצבע אדום בקטע."),
       "a hint that repeats an evidence quote": (raw) =>
         (raw.strategyHint = "כדאי לקרוא שוב: הכלב שלה רץ אחריה."),
+      "a hint that repeats the second of several evidence quotes": (raw) => {
+        raw.activities[shortAnswer].evidenceQuotes = ["נועה הלכה לגן", "הכלב שלה רץ אחריה"];
+        raw.strategyHint = "כדאי לקרוא שוב: הכלב שלה רץ אחריה.";
+      },
     };
 
     test.each(Object.entries(malformedItems))("rejects %s", (_name, mutate) => {
@@ -150,6 +166,49 @@ describe("buildValidatedLearningItem", () => {
       });
 
       expect(() => validate(rawItem, { missionId: "event-sequence" })).toThrow();
+    });
+
+    test("rejects a quote that differs from the passage only by a Hebrew prefix, keeping matching strict", () => {
+      const rawItem = buildRawItem({
+        mutate: (raw) => {
+          raw.text = "נועה הלכה לגן. היא לקחה כדור אדום. והכלב שלה רץ אחריה.";
+          raw.activities[shortAnswer].evidenceQuotes = ["הכלב שלה רץ אחריה"];
+        },
+      });
+
+      expect(() => validate(rawItem)).toThrow();
+    });
+
+    describe("simple-inference needs two distinct clues per activity", () => {
+      const missionId = "simple-inference";
+
+      test("accepts the fixtures, which carry two quotes per activity", () => {
+        const item = validate(buildRawItem({ missionId }), { missionId });
+
+        item.activities.forEach((activity) => expect(activity.evidenceQuotes).toHaveLength(2));
+      });
+
+      test("rejects an activity that cites only one clue", () => {
+        const rawItem = buildRawItem({
+          missionId,
+          mutate: (raw) => (raw.activities[multipleChoice].evidenceQuotes = ["לבשה כובע צמר וכפפות עבות"]),
+        });
+
+        expect(() => validate(rawItem, { missionId })).toThrow();
+      });
+
+      test("rejects two quotes that normalize to the same clue", () => {
+        const rawItem = buildRawItem({
+          missionId,
+          mutate: (raw) =>
+            (raw.activities[multipleChoice].evidenceQuotes = [
+              "לבשה כובע צמר וכפפות עבות",
+              "לבשה, כובע צמר וכפפות עבות!",
+            ]),
+        });
+
+        expect(() => validate(rawItem, { missionId })).toThrow();
+      });
     });
 
     test("rejects an activity type the mission's blueprint does not support", () => {

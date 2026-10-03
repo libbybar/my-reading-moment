@@ -142,7 +142,7 @@ describe("geminiProvider", () => {
       ["a response without activities", (raw) => delete raw.activities],
       ["an unsupported activity type", (raw) => (raw.activities[1].type = "essay")],
       ["duplicate options", (raw) => (raw.activities[0].options = ["אדום", "אדום", "כחול"])],
-      ["an evidence quote missing from the passage", (raw) => (raw.activities[0].evidenceQuote = "ציטוט שלא קיים")],
+      ["an evidence quote missing from the passage", (raw) => (raw.activities[0].evidenceQuotes = ["ציטוט שלא קיים"])],
     ])("rejects %s from Gemini", async (_name, corrupt) => {
       const rawItem = structuredClone(firstRawItem);
       corrupt(rawItem);

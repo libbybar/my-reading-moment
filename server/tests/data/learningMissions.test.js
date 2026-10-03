@@ -40,6 +40,14 @@ describe("story detectives mission catalog", () => {
     });
   });
 
+  test("requires two evidence quotes for inference and at least one for every other mission", () => {
+    STORY_DETECTIVES_MISSIONS.forEach((mission) => {
+      const expectedMinimum = mission.missionId === "simple-inference" ? 2 : 1;
+
+      expect(mission.minEvidenceQuotesPerActivity).toBeGreaterThanOrEqual(expectedMinimum);
+    });
+  });
+
   test("stores no reusable child-facing question, passage or answer", () => {
     STORY_DETECTIVES_MISSIONS.forEach((mission) => {
       FORBIDDEN_CONTENT_FIELDS.forEach((field) => expect(mission).not.toHaveProperty(field));
