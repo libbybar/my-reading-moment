@@ -140,6 +140,14 @@ describe("buildValidatedLearningItem", () => {
         (raw.activities[multipleChoice].options = ["אדום", "כחול", "ירוק", "צהוב", "לבן"]),
       "a canonical answer that is not one of the options": (raw) =>
         (raw.activities[multipleChoice].canonicalAnswer = "סגול"),
+      "a punctuation-only short-answer canonical answer": (raw) =>
+        (raw.activities[shortAnswer].canonicalAnswer = "!!!"),
+      "a punctuation-only multiple-choice canonical answer that also matches an option": (raw) => {
+        raw.activities[multipleChoice].options = ["!!!", "כחול", "ירוק"];
+        raw.activities[multipleChoice].canonicalAnswer = "!!!";
+      },
+      "a punctuation-only option beside a valid canonical answer": (raw) =>
+        (raw.activities[multipleChoice].options = ["אדום", "...", "ירוק"]),
       "options on a short-answer activity": (raw) => (raw.activities[shortAnswer].options = ["הכלב שלה"]),
       "a hint that repeats a canonical answer": (raw) =>
         (raw.strategyHint = "כדאי לחפש את הצבע אדום בקטע."),

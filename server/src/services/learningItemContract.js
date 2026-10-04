@@ -104,6 +104,10 @@ function validateMultipleChoiceOptions(activity) {
 
   const normalizedOptions = options.map(normalizeForMatching);
 
+  if (normalizedOptions.some((option) => option.length === 0)) {
+    throw new Error("A multiple-choice option has no words after normalization");
+  }
+
   if (new Set(normalizedOptions).size !== options.length) {
     throw new Error("A multiple-choice activity has duplicate options");
   }
@@ -156,6 +160,10 @@ function validateActivity(activity, { blueprint, normalizedPassage }) {
     !isNonBlankString(activity.canonicalAnswer)
   ) {
     throw new Error("Learning item activity needs a prompt and a canonicalAnswer");
+  }
+
+  if (normalizeForMatching(activity.canonicalAnswer).length === 0) {
+    throw new Error("Learning item canonicalAnswer has no words after normalization");
   }
 
   const evidenceQuotes = validateEvidenceQuotes(activity.evidenceQuotes, { blueprint, normalizedPassage });
