@@ -1,5 +1,7 @@
 import mockPassages from "../../data/mockPassages.js";
+import mockLearningItemsByMissionId from "../../data/mockLearningItems.js";
 import { isValidLevel, isValidSublevel, getReadingLevelSpec } from "../../data/readingLevelSpec.js";
+import { parseLearningItemRequest, buildValidatedLearningItem } from "../learningItemContract.js";
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -148,8 +150,24 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-const mockProvider = { generatePassageStream, generateQuestion, evaluateAnswer };
+// Runs fixtures through the same validation as real output, so a fixture that
+// repeats a recent item is skipped exactly as a repeated Gemini item is rejected.
+async function generateLearningItem(request) {
+  const { blueprint, recentItems } = parseLearningItemRequest(request);
 
-export { generatePassageStream, generateQuestion, evaluateAnswer };
+  for (const rawItem of mockLearningItemsByMissionId[blueprint.missionId]) {
+    try {
+      return buildValidatedLearningItem(rawItem, { blueprint, recentItems });
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(`No unused mock learning item left for mission ${blueprint.missionId}`);
+}
+
+const mockProvider = { generatePassageStream, generateQuestion, evaluateAnswer, generateLearningItem };
+
+export { generatePassageStream, generateQuestion, evaluateAnswer, generateLearningItem };
 
 export default mockProvider;

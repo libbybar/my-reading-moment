@@ -4,10 +4,12 @@ import * as geminiClient from "./geminiClient.js";
 import {
   buildPassagePrompt,
   buildQuestionPrompt,
+  buildLearningItemPrompt,
   buildEvaluationSystemInstruction,
   buildEvaluationContent,
 } from "./prompts.js";
 import { isValidLevel, isValidSublevel } from "../../data/readingLevelSpec.js";
+import { parseLearningItemRequest, buildValidatedLearningItem } from "../learningItemContract.js";
 
 function isNonBlankString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -162,8 +164,21 @@ async function evaluateAnswer({ passage, question, answerText }) {
   };
 }
 
-const geminiProvider = { generatePassageStream, generateQuestion, evaluateAnswer };
+async function generateLearningItem(request) {
+  const parsedRequest = parseLearningItemRequest(request);
 
-export { generatePassageStream, generateQuestion, evaluateAnswer };
+  const rawItem = await geminiClient.generateJson({
+    prompt: buildLearningItemPrompt(parsedRequest),
+    responseSchema: geminiClient.LEARNING_ITEM_RESPONSE_SCHEMA,
+    label: "Gemini: generateLearningItem",
+    describeResult: () => ({ missionId: parsedRequest.blueprint.missionId }),
+  });
+
+  return buildValidatedLearningItem(rawItem, parsedRequest);
+}
+
+const geminiProvider = { generatePassageStream, generateQuestion, evaluateAnswer, generateLearningItem };
+
+export { generatePassageStream, generateQuestion, evaluateAnswer, generateLearningItem };
 
 export default geminiProvider;

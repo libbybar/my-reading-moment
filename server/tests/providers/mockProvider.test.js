@@ -1,6 +1,10 @@
 import mockProvider from "../../src/services/llmProvider/mockProvider.js";
 import mockPassages from "../../src/data/mockPassages.js";
-import { runLlmProviderContractTests } from "../support/llmProviderContract.js";
+import mockLearningItemsByMissionId from "../../src/data/mockLearningItems.js";
+import {
+  runLlmProviderContractTests,
+  runLearningItemContractTests,
+} from "../support/llmProviderContract.js";
 
 const [seedPassage] = mockPassages;
 const passageFixture = {
@@ -34,6 +38,31 @@ describe("mockProvider", () => {
     passage: passageFixture,
     level: passageFixture.level,
     sublevel: passageFixture.sublevel,
+  });
+
+  runLearningItemContractTests(mockProvider, { missionId: "explicit-detail" });
+
+  describe("mock learning items", () => {
+    const mockMissionIds = Object.keys(mockLearningItemsByMissionId);
+    const readabilityBand = { level: 1, sublevel: 1 };
+
+    test.each(mockMissionIds)("serves every fixture of %s in turn, then reports it exhausted", async (missionId) => {
+      const recentItems = [];
+
+      for (let served = 0; served < mockLearningItemsByMissionId[missionId].length; served += 1) {
+        const item = await mockProvider.generateLearningItem({ missionId, readabilityBand, recentItems });
+
+        recentItems.push({
+          variationSignature: item.variationSignature,
+          contentFingerprint: item.contentFingerprint,
+        });
+      }
+
+      expect(new Set(recentItems.map((recent) => recent.contentFingerprint)).size).toBe(recentItems.length);
+      await expect(
+        mockProvider.generateLearningItem({ missionId, readabilityBand, recentItems }),
+      ).rejects.toThrow();
+    });
   });
 
   describe("mock-specific behavior", () => {

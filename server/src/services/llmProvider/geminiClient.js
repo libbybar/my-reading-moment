@@ -30,6 +30,30 @@ const QUESTION_RESPONSE_SCHEMA = {
   required: ["prompt", "expectedMeaning"],
 };
 
+const LEARNING_ITEM_ACTIVITY_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    type: { type: Type.STRING, enum: ["multiple-choice", "short-answer"] },
+    prompt: { type: Type.STRING },
+    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+    canonicalAnswer: { type: Type.STRING },
+    evidenceQuotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ["type", "prompt", "options", "canonicalAnswer", "evidenceQuotes"],
+};
+
+const LEARNING_ITEM_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    title: { type: Type.STRING },
+    text: { type: Type.STRING },
+    activities: { type: Type.ARRAY, items: LEARNING_ITEM_ACTIVITY_SCHEMA },
+    strategyHint: { type: Type.STRING },
+    variationSignature: { type: Type.STRING },
+  },
+  required: ["title", "text", "activities", "strategyHint", "variationSignature"],
+};
+
 const EVALUATION_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -118,5 +142,6 @@ export {
   generateJson,
   generateTextStream,
   QUESTION_RESPONSE_SCHEMA,
+  LEARNING_ITEM_RESPONSE_SCHEMA,
   EVALUATION_RESPONSE_SCHEMA,
 };

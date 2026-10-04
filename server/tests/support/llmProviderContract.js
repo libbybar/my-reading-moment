@@ -266,4 +266,71 @@ function runLlmProviderContractTests(provider, { passage, level, sublevel }) {
   });
 }
 
-export { runLlmProviderContractTests };
+// The provider under test must answer successive calls with different valid items
+// of the same mission; each provider's own test file arranges that.
+function runLearningItemContractTests(provider, { missionId }) {
+  const request = { missionId, readabilityBand: { level: 1, sublevel: 1 }, interest: "space" };
+
+  describe("generateLearningItem", () => {
+    test("resolves a validated item with two differently-typed activities and server-assigned ids", async () => {
+      const item = await provider.generateLearningItem(request);
+
+      expect(item).toEqual({
+        itemId: expect.any(String),
+        missionId,
+        passage: { title: expect.any(String), text: expect.any(String) },
+        activities: [expect.any(Object), expect.any(Object)],
+        strategyHint: expect.any(String),
+        variationSignature: expect.any(String),
+        contentFingerprint: expect.any(String),
+      });
+      expect(new Set(item.activities.map((activity) => activity.type)).size).toBe(2);
+    });
+
+    test("quotes evidence that appears in the passage for every activity", async () => {
+      const item = await provider.generateLearningItem(request);
+
+      item.activities.forEach((activity) => {
+        const plainText = item.passage.text.replace(/[.,!?]/g, "");
+
+        expect(activity.evidenceQuotes.length).toBeGreaterThan(0);
+        activity.evidenceQuotes.forEach((quote) => {
+          expect(plainText).toContain(quote.replace(/[.,!?]/g, ""));
+        });
+      });
+    });
+
+    test("creates a distinct valid item for the same skill when the first is recent", async () => {
+      const first = await provider.generateLearningItem(request);
+      const second = await provider.generateLearningItem({
+        ...request,
+        recentItems: [
+          { variationSignature: first.variationSignature, contentFingerprint: first.contentFingerprint },
+        ],
+      });
+
+      expect(second.missionId).toBe(first.missionId);
+      expect(second.itemId).not.toBe(first.itemId);
+      expect(second.contentFingerprint).not.toBe(first.contentFingerprint);
+      expect(second.variationSignature).not.toBe(first.variationSignature);
+      expect(second.passage.text).not.toBe(first.passage.text);
+    });
+
+    test("works without an interest or recent items", async () => {
+      const item = await provider.generateLearningItem({ missionId, readabilityBand: { level: 1, sublevel: 1 } });
+
+      expect(item.missionId).toBe(missionId);
+    });
+
+    test.each([
+      ["an unknown mission", { ...request, missionId: "not-a-mission" }],
+      ["an invalid readability band", { ...request, readabilityBand: { level: 9, sublevel: 1 } }],
+      ["an interest outside the allow-list", { ...request, interest: "anything a child typed" }],
+      ["malformed recent items", { ...request, recentItems: [{ variationSignature: "x" }] }],
+    ])("rejects %s", async (_name, invalidRequest) => {
+      await expect(provider.generateLearningItem(invalidRequest)).rejects.toThrow();
+    });
+  });
+}
+
+export { runLlmProviderContractTests, runLearningItemContractTests };
