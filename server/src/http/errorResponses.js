@@ -131,6 +131,26 @@ const ERROR_RESPONSE_DEFINITIONS = {
     publicMessage: "Child not found",
     developmentMessage: "No child profile matched this parent and child id.",
   },
+  learningJourneyInvalidInput: {
+    code: "learning_journey_invalid_input",
+    publicMessage: "Invalid learning journey details",
+    developmentMessage: "startingSignal must be one of the allowed starting signals",
+  },
+  learningJourneyPlacementStarted: {
+    code: "learning_journey_placement_started",
+    publicMessage: "The starting estimate can no longer be changed",
+    developmentMessage: "Placement has already started for this child, so the seed band is fixed.",
+  },
+  learningJourneyLoadFailed: {
+    code: "learning_journey_load_failed",
+    publicMessage: "Failed to load the learning journey",
+    developmentMessage: "The learning journey could not be loaded.",
+  },
+  learningJourneySaveFailed: {
+    code: "learning_journey_save_failed",
+    publicMessage: "Failed to save the learning journey",
+    developmentMessage: "The learning journey could not be saved.",
+  },
   childProfileUpdateFailed: {
     code: "child_profile_update_failed",
     publicMessage: "Failed to update child profile",

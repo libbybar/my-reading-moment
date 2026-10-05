@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 import Parent from "../models/Parent.js";
 
 const DUPLICATE_KEY_ERROR_CODE = 11000;
@@ -98,14 +100,37 @@ function activeChildFilter(parentId, childId) {
   return { _id: parentId, children: { $elemMatch: { _id: childId, isArchived: { $ne: true } } } };
 }
 
+// Null for an unowned, missing, archived or malformed child id, so those cases stay indistinguishable.
+async function findActiveChild(parentId, childId, { session } = {}) {
+  if (!mongoose.isValidObjectId(childId)) {
+    return null;
+  }
+
+  const parent = await Parent.findOne(activeChildFilter(parentId, childId), null, { session });
+
+  return parent ? parent.children.id(childId) : null;
+}
+
+// Beyond recording the time, this write is what makes a concurrent archive of
+// the same parent document conflict with the transaction that issues it.
+async function recordChildSession(parentId, childId, at, { session } = {}) {
+  const parent = await Parent.findOneAndUpdate(
+    activeChildFilter(parentId, childId),
+    { $set: { "children.$.lastSessionAt": at } },
+    { returnDocument: "after", session },
+  );
+
+  return parent ? parent.children.id(childId) : null;
+}
+
 // Soft delete: flips isArchived rather than pulling the child out of the
 // array, so TextResult/learningEvents history stays intact. Same
 // ownership-scoped filter as updateChild.
-async function archiveChild(parentId, childId) {
+async function archiveChild(parentId, childId, { session } = {}) {
   const parent = await Parent.findOneAndUpdate(
     activeChildFilter(parentId, childId),
     { $set: { "children.$.isArchived": true } },
-    { returnDocument: "after", runValidators: true },
+    { returnDocument: "after", runValidators: true, session },
   );
 
   return parent ? parent.children.id(childId) : null;
@@ -175,6 +200,8 @@ export {
   create,
   addChild,
   updateChild,
+  findActiveChild,
+  recordChildSession,
   archiveChild,
   recordLogin,
   applyTextCompletionProgress,

@@ -3,11 +3,14 @@ import express from "express";
 import readingSessionStore from "../services/readingSessionStore.js";
 import * as parentRepository from "../repositories/parentRepository.js";
 import * as textResultRepository from "../repositories/textResultRepository.js";
+import * as learningJourneyRepository from "../repositories/learningJourneyRepository.js";
+import { archiveChildAndDiscardItems } from "../services/learningItemLifecycle.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
 import { requireParentZone } from "../middleware/parentZoneMiddleware.js";
 import { sendErrorResponse } from "../http/errorResponses.js";
 import INTERESTS from "../data/interests.js";
 import AVATARS from "../data/avatars.js";
+import { STARTING_SIGNAL_BANDS } from "../data/readabilityBands.js";
 
 const router = express.Router();
 
@@ -59,6 +62,10 @@ function isValidInterests(value) {
 
 function isValidAvatarId(value) {
   return AVATARS.includes(value);
+}
+
+function isValidStartingSignal(value) {
+  return Object.hasOwn(STARTING_SIGNAL_BANDS, value);
 }
 
 router.get("/", requireAuth, async (req, res) => {
@@ -121,6 +128,60 @@ router.get("/:childId/progress", requireAuth, requireParentZone, async (req, res
     });
   } catch (error) {
     sendErrorResponse(res, 500, "childProfileProgressLoadFailed", { cause: error });
+  }
+});
+
+function toSafeLearningJourney(journey) {
+  return {
+    startingSignal: journey.startingSignal,
+    anchorBand: journey.provisionalAnchorBand ?? journey.seedBand,
+    placementStatus: journey.placementStatus,
+  };
+}
+
+router.get("/:childId/learning-journey", requireAuth, requireParentZone, async (req, res) => {
+  const { childId } = req.params;
+
+  try {
+    if (!(await parentRepository.findActiveChild(req.parentId, childId))) {
+      return sendErrorResponse(res, 404, "childNotFound");
+    }
+
+    const journey = await learningJourneyRepository.findByChild({ parentId: req.parentId, childId });
+
+    res.status(200).json({ learningJourney: journey ? toSafeLearningJourney(journey) : null });
+  } catch (error) {
+    sendErrorResponse(res, 500, "learningJourneyLoadFailed", { cause: error });
+  }
+});
+
+router.put("/:childId/learning-journey", requireAuth, requireParentZone, async (req, res) => {
+  const { childId } = req.params;
+  const { startingSignal } = req.body ?? {};
+
+  if (!isValidStartingSignal(startingSignal)) {
+    return sendErrorResponse(res, 400, "learningJourneyInvalidInput");
+  }
+
+  try {
+    if (!(await parentRepository.findActiveChild(req.parentId, childId))) {
+      return sendErrorResponse(res, 404, "childNotFound");
+    }
+
+    const saved = await learningJourneyRepository.saveSeed({
+      parentId: req.parentId,
+      childId,
+      startingSignal,
+      seedBand: STARTING_SIGNAL_BANDS[startingSignal],
+    });
+
+    if (!saved.ok) {
+      return sendErrorResponse(res, 409, "learningJourneyPlacementStarted");
+    }
+
+    res.status(200).json({ learningJourney: toSafeLearningJourney(saved.journey) });
+  } catch (error) {
+    sendErrorResponse(res, 500, "learningJourneySaveFailed", { cause: error });
   }
 });
 
@@ -245,7 +306,7 @@ router.delete("/:childId", requireAuth, requireParentZone, async (req, res) => {
   const { childId } = req.params;
 
   try {
-    const archivedChild = await parentRepository.archiveChild(req.parentId, childId);
+    const archivedChild = await archiveChildAndDiscardItems({ parentId: req.parentId, childId });
 
     if (!archivedChild) {
       return sendErrorResponse(res, 404, "childNotFound");
