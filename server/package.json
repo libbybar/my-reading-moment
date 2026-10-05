@@ -9,7 +9,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:coverage": "npm test -- --coverage",
     "lint": "eslint .",
-    "seed:dev": "node scripts/seedDevParent.js"
+    "seed:dev": "node scripts/seedDevParent.js",
+    "validate:mapper-bank": "node scripts/validateMapperBank.js"
   },
   "keywords": [],
   "author": "",

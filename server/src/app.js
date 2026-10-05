@@ -8,6 +8,7 @@ import readingSessionRoutes from "./routes/readingSessionRoutes.js";
 import childProfileRoutes from "./routes/childProfileRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import parentZoneRoutes from "./routes/parentZoneRoutes.js";
+import placementRoutes from "./routes/placementRoutes.js";
 import { sendErrorResponse } from "./http/errorResponses.js";
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(cookieParser());
 
 app.use("/api/health", healthRoutes);
 app.use("/api/reading-sessions", readingSessionRoutes);
+app.use("/api/child-profiles/:childId/placement", placementRoutes);
 app.use("/api/child-profiles", childProfileRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/parent-zone", parentZoneRoutes);

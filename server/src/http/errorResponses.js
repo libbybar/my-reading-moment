@@ -131,6 +131,31 @@ const ERROR_RESPONSE_DEFINITIONS = {
     publicMessage: "Child not found",
     developmentMessage: "No child profile matched this parent and child id.",
   },
+  placementInvalidInput: {
+    code: "placement_invalid_input",
+    publicMessage: "Invalid placement request",
+    developmentMessage: "itemId must be a non-blank string and selectedSentenceIndex a sentence position",
+  },
+  placementEstimateMissing: {
+    code: "placement_estimate_missing",
+    publicMessage: "The parent has not given a starting estimate yet",
+    developmentMessage: "Save the parent's starting signal before starting placement.",
+  },
+  placementNotStarted: {
+    code: "placement_not_started",
+    publicMessage: "Placement has not started",
+    developmentMessage: "Start placement before answering, skipping or asking for help.",
+  },
+  placementUnavailable: {
+    code: "placement_unavailable",
+    publicMessage: "Placement is not available right now",
+    developmentMessage: "The mapper item bank does not have enough reviewed items for this child's starting band.",
+  },
+  placementFailed: {
+    code: "placement_failed",
+    publicMessage: "Placement request failed",
+    developmentMessage: "The placement request could not be completed.",
+  },
   learningJourneyInvalidInput: {
     code: "learning_journey_invalid_input",
     publicMessage: "Invalid learning journey details",
